@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Karla', sans-serif;
+  color: #23201a;
+  background-color: #f4ede0;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(192,98,58,.05), transparent 40%),
+    radial-gradient(circle at 85% 100%, rgba(47,74,58,.06), transparent 45%);
+  -webkit-tap-highlight-color: transparent;
+}
+* { box-sizing: border-box; }
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
