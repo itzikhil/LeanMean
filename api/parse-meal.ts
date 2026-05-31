@@ -10,32 +10,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!text) return res.status(400).json({ error: 'Missing text' })
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { maxOutputTokens: 1024 },
+    })
 
-    const prompt = `You are a nutrition assistant. Parse the following meal description into individual food items with estimated macros.
+    const prompt = `Parse this meal into food items with macros. Match against known foods when possible; estimate unknowns.
 
-KNOWN FOODS DATABASE (use these exact values when you can match):
-${knownFoods || '(none provided)'}
+KNOWN FOODS:
+${knownFoods || '(none)'}
 
-USER INPUT: "${text}"
+INPUT: "${text}"
 
-INSTRUCTIONS:
-1. Parse each food item and its quantity from the description.
-2. If a food matches (or closely matches) something in the KNOWN FOODS DATABASE above, use the exact name and macro values from the database. Scale by quantity.
-3. For foods NOT in the database, estimate reasonable macros based on common nutritional data.
-4. Assign each item to the most likely meal slot: "breakfast", "snack", "lunch", "prewo", "dinner", or "extras".
-
-Return ONLY a valid JSON array (no markdown fences, no explanation). Each element must have exactly these fields:
-- "name": string (food name with portion info)
-- "kcal": number (total calories for the quantity)
-- "p": number (protein in grams)
-- "c": number (carbs in grams)
-- "f": number (fat in grams)
-- "qty": number (always 1, macros already scaled to portion)
-- "meal": string (one of: "breakfast", "snack", "lunch", "prewo", "dinner", "extras")
-- "estimated": boolean (false if matched from known foods, true if estimated)
-
-If you cannot parse the input, return [].`
+Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":bool}
+Use estimated:false for known-food matches, true for estimates. If unparseable return [].`
 
     const result = await model.generateContent(prompt)
     let responseText = result.response.text().trim()

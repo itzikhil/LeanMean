@@ -101,7 +101,23 @@ export default function AddSheet({
     setPhotoLoading(true)
     setScanMsg('')
     try {
-      const b64 = await resizeImage(file, 1024, 0.8)
+      let b64: string
+      try {
+        b64 = await resizeImage(file, 1024, 0.8)
+      } catch (resizeErr) {
+        const msg = resizeErr instanceof Error ? resizeErr.message : 'Unknown resize error'
+        setScanMsg(`Image processing failed: ${msg}. Try a different photo or add manually.`)
+        setPhotoLoading(false)
+        if (fileRef.current) fileRef.current.value = ''
+        return
+      }
+      // Validate base64 payload before sending (must be under 4MB for Vercel)
+      if (b64.length > 4_000_000) {
+        setScanMsg('Image still too large after compression. Try taking a closer/simpler photo.')
+        setPhotoLoading(false)
+        if (fileRef.current) fileRef.current.value = ''
+        return
+      }
       const res = await fetch('/api/parse-label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,8 +132,9 @@ export default function AddSheet({
         basis,
         per100: { kcal: Math.round(data.kcal || 0), p: +(data.p || 0), c: +(data.c || 0), f: +(data.f || 0) },
       })
-    } catch {
-      setScanMsg('Failed to parse label. Try custom entry.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setScanMsg(`Label scan failed: ${msg}`)
     }
     setPhotoLoading(false)
     if (fileRef.current) fileRef.current.value = ''
@@ -220,7 +237,18 @@ export default function AddSheet({
     setAiError(null)
     setAiItems([])
     try {
-      const b64 = await resizeImage(file, 1024, 0.8)
+      let b64: string
+      try {
+        b64 = await resizeImage(file, 1024, 0.8)
+      } catch (resizeErr) {
+        const msg = resizeErr instanceof Error ? resizeErr.message : 'Unknown resize error'
+        setAiError(`Image processing failed: ${msg}. Try a different photo.`)
+        return
+      }
+      if (b64.length > 4_000_000) {
+        setAiError('Image still too large after compression. Try a simpler photo.')
+        return
+      }
       const res = await fetch('/api/parse-plate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,8 +258,9 @@ export default function AddSheet({
       if (data.error) { setAiError(data.error); return }
       if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
       setAiItems(data.items)
-    } catch {
-      setAiError('Failed to analyze photo. Check your connection.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setAiError(`Photo analysis failed: ${msg}`)
     } finally {
       setAiLoading(false)
       if (plateRef.current) plateRef.current.value = ''

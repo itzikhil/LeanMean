@@ -15,30 +15,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const b64 = match ? match[2] : image
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { maxOutputTokens: 256 },
+    })
 
     const result = await model.generateContent([
-      {
-        inlineData: { mimeType, data: b64 },
-      },
-      {
-        text: `Extract the nutrition facts from this food label photo.
-Return ONLY a valid JSON object (no markdown fences, no explanation) with exactly these fields:
-- "name": product name (string)
-- "basis": "100g" if the values are per 100 g/ml, otherwise "serving"
-- "kcal": calories in kcal (number). If only kJ is shown, divide by 4.184 and round.
-- "p": protein in grams (number)
-- "c": carbohydrates in grams (number)
-- "f": fat in grams (number)
-
-Handle European labels: comma decimals (e.g. "1,9 g" = 1.9), kJ-to-kcal conversion, German/Italian/French field names (Eiweiss/Proteine/Proteines = protein, Kohlenhydrate/Carboidrati/Glucides = carbs, Fett/Grassi/Lipides = fat, Brennwert/Energia/Valeur energetique = energy).
-If you cannot read the label, return {"error": "Could not parse label"}.`,
-      },
+      { inlineData: { mimeType, data: b64 } },
+      { text: `Extract nutrition facts from this label. Return ONLY JSON: {"name":"…","basis":"100g" or "serving","kcal":N,"p":N,"c":N,"f":N}. Convert kJ÷4.184=kcal. Handle EU labels (comma decimals, German/French/Italian terms). If unreadable: {"error":"Could not parse label"}.` },
     ])
 
     let text = result.response.text().trim()
-
-    // Strip markdown code fences if the model wrapped the JSON
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
 
     let parsed: Record<string, unknown>

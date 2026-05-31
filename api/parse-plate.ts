@@ -14,31 +14,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const b64 = match ? match[2] : image
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: { maxOutputTokens: 1024 },
+    })
 
-    const prompt = `You are a nutrition assistant. Analyze this photo of a meal/plate and identify each food item with estimated portions and macros.
+    const prompt = `Identify foods on this plate with estimated portions and macros. Match known foods when possible.
 
-KNOWN FOODS DATABASE (use these exact values when you can match):
-${knownFoods || '(none provided)'}
+KNOWN FOODS:
+${knownFoods || '(none)'}
 
-INSTRUCTIONS:
-1. Identify each distinct food item visible on the plate/in the photo.
-2. Estimate the portion size for each item.
-3. If a food matches (or closely matches) something in the KNOWN FOODS DATABASE above, use the exact macro values from the database scaled to the estimated portion.
-4. For foods NOT in the database, estimate reasonable macros based on common nutritional data.
-5. Assign each item to the most likely meal slot: "breakfast", "snack", "lunch", "prewo", "dinner", or "extras".
-
-Return ONLY a valid JSON array (no markdown fences, no explanation). Each element must have exactly these fields:
-- "name": string (food name with estimated portion, e.g. "Chicken breast (~150g)")
-- "kcal": number (total calories for the estimated portion)
-- "p": number (protein in grams)
-- "c": number (carbs in grams)
-- "f": number (fat in grams)
-- "qty": number (always 1, macros already scaled to portion)
-- "meal": string (one of: "breakfast", "snack", "lunch", "prewo", "dinner", "extras")
-- "estimated": boolean (true for all plate-photo items since portions are estimated)
-
-If you cannot identify food in the image, return [].`
+Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":true}
+If no food visible return [].`
 
     const result = await model.generateContent([
       { inlineData: { mimeType, data: b64 } },
