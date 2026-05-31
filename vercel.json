@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/parse-label.ts": { "maxDuration": 60 },
+    "api/parse-meal.ts": { "maxDuration": 60 },
+    "api/parse-plate.ts": { "maxDuration": 60 }
+  }
+}

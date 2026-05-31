@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MEALS, MENU } from '../lib/menu'
 import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
+import { resizeImage } from '../lib/resizeImage'
 import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem } from '../lib/types'
 import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
@@ -100,11 +101,7 @@ export default function AddSheet({
     setPhotoLoading(true)
     setScanMsg('')
     try {
-      const b64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.readAsDataURL(file)
-      })
+      const b64 = await resizeImage(file, 1024, 0.8)
       const res = await fetch('/api/parse-label', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,11 +220,7 @@ export default function AddSheet({
     setAiError(null)
     setAiItems([])
     try {
-      const b64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.readAsDataURL(file)
-      })
+      const b64 = await resizeImage(file, 1024, 0.8)
       const res = await fetch('/api/parse-plate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
