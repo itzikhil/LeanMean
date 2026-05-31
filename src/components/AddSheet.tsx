@@ -204,7 +204,11 @@ export default function AddSheet({
             <div>
               <p className="font-display font-semibold text-lg">{pending.name}</p>
               <p className="text-[.8rem] text-inksoft mb-3">
-                {pending.basis === '100g' ? 'Per 100g' : 'Per serving'}: {pending.per100.kcal} kcal · {pending.per100.p}P / {pending.per100.c}C / {pending.per100.f}F
+                {pending.basis === '100g'
+                  ? weighMode === 'cooked' && pending.cookedFactor
+                    ? `Per 100g cooked: ${Math.round(pending.per100.kcal / pending.cookedFactor)} kcal · ${(pending.per100.p / pending.cookedFactor).toFixed(1)}P / ${(pending.per100.c / pending.cookedFactor).toFixed(1)}C / ${(pending.per100.f / pending.cookedFactor).toFixed(1)}F`
+                    : `Per 100g raw: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F`
+                  : `Per serving: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F`}
               </p>
               {pending.basis === '100g' && pending.cookedFactor && (
                 <div className="flex gap-1 mb-3">

@@ -166,7 +166,9 @@ export default function App() {
           <div className="font-display font-black text-[1.45rem] text-forest leading-none">
             Lean <span className="italic font-medium text-terra">Kitchen</span>
           </div>
-          <span className="w-12" />
+          <button onClick={() => supabase.auth.signOut()} className="w-12 text-right text-[.7rem] text-inksoft/60 active:text-inksoft">
+            Sign out
+          </button>
         </div>
         {view === 'today' && (
           <div className="flex items-center justify-center gap-4 mt-3">
