@@ -65,17 +65,28 @@ create table if not exists public.settings (
   rest_f numeric not null default 58
 );
 
+-- ---------- saved_meals ----------
+create table if not exists public.saved_meals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  name text not null,
+  items jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists saved_meals_user on public.saved_meals(user_id);
+
 -- ---------- Row Level Security ----------
 alter table public.food_logs enable row level security;
 alter table public.my_foods enable row level security;
 alter table public.weights enable row level security;
 alter table public.day_meta enable row level security;
 alter table public.settings enable row level security;
+alter table public.saved_meals enable row level security;
 
 do $$
 declare t text;
 begin
-  foreach t in array array['food_logs','my_foods','weights','day_meta','settings'] loop
+  foreach t in array array['food_logs','my_foods','weights','day_meta','settings','saved_meals'] loop
     execute format('drop policy if exists "owner_all" on public.%I;', t);
     execute format(
       'create policy "owner_all" on public.%I for all using (auth.uid() = user_id) with check (auth.uid() = user_id);',

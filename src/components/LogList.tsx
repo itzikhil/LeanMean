@@ -1,20 +1,23 @@
 import { useState } from 'react'
 import { MEALS } from '../lib/menu'
-import type { LogEntry, MealId } from '../lib/types'
+import type { LogEntry, MealId, SavedMealItem } from '../lib/types'
 
 const r = (n: number) => Math.round(n)
 
 export default function LogList({
-  entries, onQty, onDelete, onCopyMeal, onCopyDay,
+  entries, onQty, onDelete, onCopyMeal, onCopyDay, onSaveMeal,
 }: {
   entries: LogEntry[]
   onQty: (id: string, delta: number) => void
   onDelete: (id: string) => void
   onCopyMeal: (meal: MealId, fromDate: string) => void
   onCopyDay: (fromDate: string) => void
+  onSaveMeal: (name: string, items: SavedMealItem[]) => void
 }) {
   const [copyOpen, setCopyOpen] = useState<MealId | 'day' | null>(null)
   const [copyDays, setCopyDays] = useState(1)
+  const [savingMeal, setSavingMeal] = useState<MealId | null>(null)
+  const [saveName, setSaveName] = useState('')
 
   function doCopy(meal?: MealId) {
     const d = new Date()
@@ -62,10 +65,39 @@ export default function LogList({
               <h3 className="font-display font-semibold text-[1.05rem]">{m.name}</h3>
               <button onClick={() => setCopyOpen(copyOpen === m.id ? null : m.id)}
                 className="text-[.68rem] font-bold text-terra/70 active:text-terra ml-1">copy...</button>
+              <button onClick={() => { setSavingMeal(savingMeal === m.id ? null : m.id); setSaveName('') }}
+                className="text-[.68rem] font-bold text-forest/70 active:text-forest">save...</button>
               <span className="ml-auto text-[.78rem] font-bold text-inksoft">{r(mk)} kcal</span>
             </div>
             {copyOpen === m.id && (
               <CopyPicker label={m.name} days={copyDays} onDays={setCopyDays} onConfirm={() => doCopy(m.id)} onCancel={() => setCopyOpen(null)} />
+            )}
+            {savingMeal === m.id && (
+              <div className="bg-white border border-line rounded-xl px-3 py-2.5 mb-2">
+                <p className="text-[.78rem] text-inksoft mb-2">Save <b>{m.name}</b> items as a reusable meal:</p>
+                <input
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="Meal name"
+                  className="w-full text-base px-3 py-2 border border-line rounded-lg bg-white focus:outline-none focus:border-terra mb-2"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (!saveName.trim()) return
+                      onSaveMeal(saveName.trim(), items.map((e) => ({ name: e.name, kcal: e.kcal, p: e.p, c: e.c, f: e.f, qty: e.qty })))
+                      setSavingMeal(null)
+                      setSaveName('')
+                    }}
+                    disabled={!saveName.trim()}
+                    className="flex-1 bg-forest text-white font-bold py-2 rounded-lg text-[.82rem] active:opacity-90 disabled:opacity-40"
+                  >
+                    Save
+                  </button>
+                  <button onClick={() => setSavingMeal(null)} className="flex-1 bg-paper border border-line text-inksoft font-bold py-2 rounded-lg text-[.82rem] active:opacity-90">Cancel</button>
+                </div>
+              </div>
             )}
             {items.map((e) => (
               <div key={e.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">

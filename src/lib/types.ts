@@ -54,4 +54,21 @@ export interface Settings {
   rest: Targets
 }
 
+export interface SavedMealItem {
+  name: string
+  kcal: number
+  p: number
+  c: number
+  f: number
+  qty: number
+}
+
+export interface SavedMeal {
+  id: string
+  user_id?: string
+  name: string
+  items: SavedMealItem[]
+  created_at?: string
+}
+
 export type DayType = 'training' | 'rest'

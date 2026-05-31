@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { DayType, LogEntry, MealId, MyFood, Settings, WeightEntry } from './types'
+import type { DayType, LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Settings, WeightEntry } from './types'
 import { DEFAULT_SETTINGS } from './targets'
 
 
@@ -137,6 +137,36 @@ export async function saveSettings(s: Settings): Promise<void> {
     },
     { onConflict: 'user_id' },
   )
+}
+
+// ---------- Saved Meals ----------
+export async function getSavedMeals(): Promise<SavedMeal[]> {
+  const { data, error } = await supabase
+    .from('saved_meals')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as SavedMeal[]
+}
+
+export async function saveMeal(name: string, items: SavedMealItem[]): Promise<void> {
+  const { error } = await supabase
+    .from('saved_meals')
+    .insert({ user_id: await uid(), name, items })
+  if (error) throw error
+}
+
+export async function deleteSavedMeal(id: string): Promise<void> {
+  const { error } = await supabase.from('saved_meals').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------- Batch add ----------
+export async function addLogs(entries: Omit<LogEntry, 'id' | 'created_at'>[]): Promise<void> {
+  const userId = await uid()
+  const rows = entries.map((e) => ({ ...e, user_id: userId }))
+  const { error } = await supabase.from('food_logs').insert(rows)
+  if (error) throw error
 }
 
 // ---------- Weekly aggregate ----------

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MEALS, MENU } from '../lib/menu'
 import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
-import type { LogEntry, MealId, MyFood } from '../lib/types'
+import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem } from '../lib/types'
 import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
 
@@ -11,7 +11,7 @@ type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find'
 interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number } }
 
 export default function AddSheet({
-  open, onClose, onAdd, myFoods, onSaveMyFood, onDeleteMyFood,
+  open, onClose, onAdd, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
 }: {
   open: boolean
   onClose: () => void
@@ -19,6 +19,9 @@ export default function AddSheet({
   myFoods: MyFood[]
   onSaveMyFood: (f: Omit<MyFood, 'id' | 'use_count' | 'last_used'>) => void
   onDeleteMyFood: (id: string) => void
+  savedMeals: SavedMeal[]
+  onDeleteSavedMeal: (id: string) => void
+  onAddSavedMeal: (meal: MealId, items: SavedMealItem[]) => void
 }) {
   const [tab, setTab] = useState<Tab>('menu')
   const [customMeal, setCustomMeal] = useState<MealId>('breakfast')
@@ -34,6 +37,8 @@ export default function AddSheet({
   const [stapleFilter, setStapleFilter] = useState('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [pendingSaved, setPendingSaved] = useState<SavedMeal | null>(null)
+  const [savedMealSlot, setSavedMealSlot] = useState<MealId>('breakfast')
   const [kbOffset, setKbOffset] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -48,7 +53,7 @@ export default function AddSheet({
     return () => { vv.removeEventListener('resize', onVVChange); vv.removeEventListener('scroll', onVVChange) }
   }, [])
 
-  function reset() { setPending(null); setGrams('100'); setServings('1'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
+  function reset() { setPending(null); setPendingSaved(null); setGrams('100'); setServings('1'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -282,17 +287,64 @@ export default function AddSheet({
               })}
             </div>
           ) : tab === 'recents' ? (
-            myFoods.length ? myFoods.map((f) => (
-              <div key={f.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
-                <button onClick={() => chooseMyFood(f)} className="flex-1 min-w-0 text-left">
-                  <span className="block font-semibold text-[.92rem]">{f.name}</span>
-                  <span className="block text-[.68rem] text-inksoft">
-                    {f.kcal} kcal · {f.p}P / {f.c}C / {f.f}F {f.basis === '100g' ? '/ 100g' : ''} · used {f.use_count}×
-                  </span>
-                </button>
-                <button onClick={() => onDeleteMyFood(f.id)} className="text-macp/40 active:text-macp px-1">✕</button>
-              </div>
-            )) : <p className="text-center text-inksoft italic py-10 text-sm">No saved foods yet. Custom entries and scans land here automatically.</p>
+            <div>
+              {pendingSaved ? (
+                <div>
+                  <p className="font-display font-semibold text-lg">{pendingSaved.name}</p>
+                  <p className="text-[.8rem] text-inksoft mb-1">
+                    {pendingSaved.items.length} items · {Math.round(pendingSaved.items.reduce((s, i) => s + i.kcal * i.qty, 0))} kcal · {Math.round(pendingSaved.items.reduce((s, i) => s + i.p * i.qty, 0))}P / {Math.round(pendingSaved.items.reduce((s, i) => s + i.c * i.qty, 0))}C / {Math.round(pendingSaved.items.reduce((s, i) => s + i.f * i.qty, 0))}F
+                  </p>
+                  <div className="text-[.72rem] text-inksoft/70 mb-3">
+                    {pendingSaved.items.map((it, i) => <span key={i}>{i > 0 && ', '}{it.name}{it.qty > 1 ? ` ×${it.qty}` : ''}</span>)}
+                  </div>
+                  <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Log to which meal?</label>
+                  <MealPicker value={savedMealSlot} onChange={setSavedMealSlot} />
+                  <button
+                    onClick={() => { onAddSavedMeal(savedMealSlot, pendingSaved.items); close() }}
+                    className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90"
+                  >
+                    Add to log
+                  </button>
+                  <button onClick={() => setPendingSaved(null)} className="w-full mt-2 text-sm text-inksoft">Back</button>
+                </div>
+              ) : (
+                <>
+                  {savedMeals.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[.7rem] font-bold uppercase tracking-widest text-forest mb-1.5 ml-0.5">Saved meals</p>
+                      {savedMeals.map((sm) => {
+                        const tot = sm.items.reduce((s, i) => ({ kcal: s.kcal + i.kcal * i.qty, p: s.p + i.p * i.qty, c: s.c + i.c * i.qty, f: s.f + i.f * i.qty }), { kcal: 0, p: 0, c: 0, f: 0 })
+                        return (
+                          <div key={sm.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
+                            <button onClick={() => { setPendingSaved(sm); setSavedMealSlot('breakfast') }} className="flex-1 min-w-0 text-left">
+                              <span className="block font-semibold text-[.92rem]">{sm.name}</span>
+                              <span className="block text-[.68rem] text-inksoft">
+                                {sm.items.length} items · {Math.round(tot.kcal)} kcal · {Math.round(tot.p)}P / {Math.round(tot.c)}C / {Math.round(tot.f)}F
+                              </span>
+                            </button>
+                            <button onClick={() => onDeleteSavedMeal(sm.id)} className="text-macp/40 active:text-macp px-1">✕</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {myFoods.length > 0 && savedMeals.length > 0 && (
+                    <p className="text-[.7rem] font-bold uppercase tracking-widest text-inksoft/60 mb-1.5 ml-0.5">Individual foods</p>
+                  )}
+                  {myFoods.length ? myFoods.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
+                      <button onClick={() => chooseMyFood(f)} className="flex-1 min-w-0 text-left">
+                        <span className="block font-semibold text-[.92rem]">{f.name}</span>
+                        <span className="block text-[.68rem] text-inksoft">
+                          {f.kcal} kcal · {f.p}P / {f.c}C / {f.f}F {f.basis === '100g' ? '/ 100g' : ''} · used {f.use_count}×
+                        </span>
+                      </button>
+                      <button onClick={() => onDeleteMyFood(f.id)} className="text-macp/40 active:text-macp px-1">✕</button>
+                    </div>
+                  )) : !savedMeals.length && <p className="text-center text-inksoft italic py-10 text-sm">No saved foods yet. Custom entries and scans land here automatically.</p>}
+                </>
+              )}
+            </div>
           ) : tab === 'custom' ? (
             <div>
               <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Which meal?</label>

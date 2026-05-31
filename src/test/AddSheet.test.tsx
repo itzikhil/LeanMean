@@ -12,6 +12,9 @@ const baseProps = {
   myFoods: [],
   onSaveMyFood: vi.fn(),
   onDeleteMyFood: vi.fn(),
+  savedMeals: [],
+  onDeleteSavedMeal: vi.fn(),
+  onAddSavedMeal: vi.fn(),
 }
 
 beforeEach(() => vi.clearAllMocks())

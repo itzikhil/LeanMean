@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import {
-  addLog, copyEntries, deleteLog, deleteMyFood as dbDeleteMyFood, getDayType, getLog, getMyFoods, getRange,
-  getSettings, getWeights, saveSettings as dbSaveSettings, setDayType, setWeight, updateQty, upsertMyFood, ymd, type DayTotal,
+  addLog, addLogs, copyEntries, deleteLog, deleteSavedMeal as dbDeleteSavedMeal, deleteMyFood as dbDeleteMyFood,
+  getDayType, getLog, getMyFoods, getRange, getSavedMeals, getSettings, getWeights,
+  saveMeal as dbSaveMeal, saveSettings as dbSaveSettings, setDayType, setWeight, updateQty, upsertMyFood, ymd, type DayTotal,
 } from './lib/db'
 import { DEFAULT_SETTINGS } from './lib/targets'
-import type { DayType, LogEntry, MealId, MyFood, Settings as TSettings, WeightEntry } from './lib/types'
+import type { DayType, LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Settings as TSettings, WeightEntry } from './lib/types'
 import Auth from './components/Auth'
 import Summary from './components/Summary'
 import LogList from './components/LogList'
@@ -27,6 +28,7 @@ export default function App() {
   const [settings, setSettings] = useState<TSettings>(DEFAULT_SETTINGS)
   const [dayType, setDay] = useState<DayType>('training')
   const [myFoods, setMyFoods] = useState<MyFood[]>([])
+  const [savedMeals, setSavedMeals] = useState<SavedMeal[]>([])
   const [range, setRange] = useState<DayTotal[]>([])
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [sheet, setSheet] = useState(false)
@@ -53,6 +55,7 @@ export default function App() {
     if (!session) return
     getSettings().then(setSettings)
     getMyFoods().then(setMyFoods)
+    getSavedMeals().then(setSavedMeals)
   }, [session])
 
   useEffect(() => { loadDay() }, [loadDay])
@@ -117,6 +120,28 @@ export default function App() {
     await copyEntries(fromDate, dstr)
     await loadDay()
   }
+  async function handleSaveMeal(name: string, items: SavedMealItem[]) {
+    await dbSaveMeal(name, items)
+    getSavedMeals().then(setSavedMeals)
+  }
+  async function handleDeleteSavedMeal(id: string) {
+    setSavedMeals(savedMeals.filter((m) => m.id !== id))
+    await dbDeleteSavedMeal(id)
+  }
+  async function handleAddSavedMeal(meal: MealId, items: SavedMealItem[]) {
+    const entries = items.map((item) => ({
+      meal,
+      name: item.name,
+      kcal: item.kcal,
+      p: item.p,
+      c: item.c,
+      f: item.f,
+      qty: item.qty,
+      date: dstr,
+    }))
+    await addLogs(entries)
+    await loadDay()
+  }
   async function handleSaveSettings(s: TSettings) {
     setSettings(s)
     await dbSaveSettings(s)
@@ -156,7 +181,7 @@ export default function App() {
         <>
           <div className="mt-3"><Summary totals={totals} targets={targets} dayType={dayType} onToggleDay={toggleDay} /></div>
           <ProteinCoach totals={totals} targets={targets} />
-          <LogList entries={entries} onQty={handleQty} onDelete={handleDelete} onCopyMeal={handleCopyMeal} onCopyDay={handleCopyDay} />
+          <LogList entries={entries} onQty={handleQty} onDelete={handleDelete} onCopyMeal={handleCopyMeal} onCopyDay={handleCopyDay} onSaveMeal={handleSaveMeal} />
         </>
       )}
       {view === 'week' && (
@@ -183,7 +208,7 @@ export default function App() {
         ))}
       </nav>
 
-      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} />
+      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} />
     </div>
   )
 }
