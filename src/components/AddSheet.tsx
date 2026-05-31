@@ -201,17 +201,29 @@ export default function AddSheet({
               {pending.basis === '100g' && (
                 <>
                   <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Grams eaten</label>
-                  <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)}
-                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
-                    className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setGrams(String(Math.max(0, (parseFloat(grams) || 0) - 10)))}
+                      className="w-11 h-11 rounded-full border border-line bg-white text-forest text-xl font-bold active:bg-paper flex-shrink-0">−</button>
+                    <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)}
+                      onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
+                      className="flex-1 text-center text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
+                    <button type="button" onClick={() => setGrams(String((parseFloat(grams) || 0) + 10))}
+                      className="w-11 h-11 rounded-full border border-line bg-white text-forest text-xl font-bold active:bg-paper flex-shrink-0">＋</button>
+                  </div>
                 </>
               )}
               {pending.basis === 'serving' && (
                 <>
                   <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Servings</label>
-                  <input type="number" inputMode="numeric" value={servings} onChange={(e) => setServings(e.target.value)}
-                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
-                    className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setServings(String(Math.max(1, (parseFloat(servings) || 1) - 1)))}
+                      className="w-11 h-11 rounded-full border border-line bg-white text-forest text-xl font-bold active:bg-paper flex-shrink-0">−</button>
+                    <input type="number" inputMode="numeric" value={servings} onChange={(e) => setServings(e.target.value)}
+                      onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
+                      className="flex-1 text-center text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
+                    <button type="button" onClick={() => setServings(String((parseFloat(servings) || 1) + 1))}
+                      className="w-11 h-11 rounded-full border border-line bg-white text-forest text-xl font-bold active:bg-paper flex-shrink-0">＋</button>
+                  </div>
                 </>
               )}
               <MealPicker value={pending.meal} onChange={(meal) => setPending({ ...pending, meal })} />
