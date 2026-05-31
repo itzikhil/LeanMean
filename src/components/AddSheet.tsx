@@ -25,6 +25,7 @@ export default function AddSheet({
   const [cf, setCf] = useState({ name: '', kcal: '', p: '', c: '', f: '' })
   const [pending, setPending] = useState<Pending | null>(null)
   const [grams, setGrams] = useState('100')
+  const [servings, setServings] = useState('1')
   const [scanMsg, setScanMsg] = useState('')
   const [photoLoading, setPhotoLoading] = useState(false)
   const [searchQ, setSearchQ] = useState('')
@@ -33,7 +34,7 @@ export default function AddSheet({
   const [stapleFilter, setStapleFilter] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function reset() { setPending(null); setGrams('100'); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
+  function reset() { setPending(null); setGrams('100'); setServings('1'); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -52,13 +53,7 @@ export default function AddSheet({
   }
 
   function chooseStaple(s: Staple) {
-    if (s.basis === '100g') {
-      setPending({ name: s.name, meal: 'snack', basis: '100g', per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f } })
-    } else {
-      onAdd({ meal: 'snack', name: s.name, kcal: s.kcal, p: s.p, c: s.c, f: s.f, qty: 1 })
-      onSaveMyFood({ name: s.name, basis: 'serving', kcal: s.kcal, p: s.p, c: s.c, f: s.f })
-      close()
-    }
+    setPending({ name: s.name, meal: 'snack', basis: s.basis, per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f } })
   }
 
   async function onBarcode(code: string) {
@@ -122,6 +117,7 @@ export default function AddSheet({
   function confirmPending() {
     if (!pending) return
     if (pending.basis === 'serving') {
+      const qty = Math.max(0.5, parseFloat(servings) || 1)
       onAdd({
         meal: pending.meal,
         name: pending.name,
@@ -129,7 +125,7 @@ export default function AddSheet({
         p: pending.per100.p,
         c: pending.per100.c,
         f: pending.per100.f,
-        qty: 1,
+        qty,
       })
       onSaveMyFood({ name: pending.name, basis: 'serving', ...pending.per100 })
       close()
@@ -189,6 +185,13 @@ export default function AddSheet({
                 <>
                   <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Grams eaten</label>
                   <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)}
+                    className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
+                </>
+              )}
+              {pending.basis === 'serving' && (
+                <>
+                  <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Servings</label>
+                  <input type="number" inputMode="numeric" value={servings} onChange={(e) => setServings(e.target.value)}
                     className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
                 </>
               )}
