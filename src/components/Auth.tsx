@@ -3,14 +3,25 @@ import { supabase, supabaseReady } from '../lib/supabase'
 
 export default function Auth() {
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  async function signIn() {
+  async function handleSubmit() {
     setErr('')
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
-    if (error) setErr(error.message)
-    else setSent(true)
+    setLoading(true)
+    try {
+      if (mode === 'signin') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) setErr(error.message)
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) setErr(error.message)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -28,27 +39,35 @@ export default function Auth() {
           </div>
         )}
 
-        {sent ? (
-          <p className="text-forest">Check your email for a sign-in link.</p>
-        ) : (
-          <>
-            <input
-              className="w-full text-base px-4 py-3 rounded-xl border border-line bg-white focus:outline-none focus:border-terra"
-              type="email"
-              placeholder="you@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button
-              className="w-full mt-3 bg-forest text-paper font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-40"
-              disabled={!email || !supabaseReady}
-              onClick={signIn}
-            >
-              Send magic link
-            </button>
-            {err && <p className="text-terra text-sm mt-3">{err}</p>}
-          </>
-        )}
+        <input
+          className="w-full text-base px-4 py-3 rounded-xl border border-line bg-white focus:outline-none focus:border-terra"
+          type="email"
+          placeholder="you@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input
+          className="w-full text-base px-4 py-3 rounded-xl border border-line bg-white focus:outline-none focus:border-terra mt-3"
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button
+          className="w-full mt-3 bg-forest text-paper font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-40"
+          disabled={!email || !password || !supabaseReady || loading}
+          onClick={handleSubmit}
+        >
+          {loading ? '...' : mode === 'signin' ? 'Sign in' : 'Sign up'}
+        </button>
+        {err && <p className="text-terra text-sm mt-3">{err}</p>}
+
+        <p className="text-inksoft text-sm mt-4">
+          {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <button className="text-forest font-bold" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setErr('') }}>
+            {mode === 'signin' ? 'Sign up' : 'Sign in'}
+          </button>
+        </p>
       </div>
     </div>
   )

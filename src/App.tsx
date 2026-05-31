@@ -7,6 +7,7 @@ import {
 } from './lib/db'
 import { DEFAULT_SETTINGS } from './lib/targets'
 import type { DayType, LogEntry, MealId, MyFood, Settings as TSettings, WeightEntry } from './lib/types'
+import Auth from './components/Auth'
 import Summary from './components/Summary'
 import LogList from './components/LogList'
 import AddSheet from './components/AddSheet'
@@ -30,17 +31,10 @@ export default function App() {
   const [sheet, setSheet] = useState(false)
 
   useEffect(() => {
-    async function init() {
-      const { data: { session: existing } } = await supabase.auth.getSession()
-      if (existing) {
-        setSession(existing)
-      } else {
-        const { data } = await supabase.auth.signInAnonymously()
-        setSession(data.session)
-      }
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
       setAuthReady(true)
-    }
-    init()
+    })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -132,6 +126,7 @@ export default function App() {
   })()
 
   if (!authReady) return <div className="min-h-full grid place-items-center text-inksoft">Loading...</div>
+  if (!session) return <Auth />
 
   return (
     <div className="max-w-[480px] mx-auto px-4 pb-28">
