@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MEALS, MENU } from '../lib/menu'
 import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
@@ -15,7 +15,7 @@ export default function AddSheet({
 }: {
   open: boolean
   onClose: () => void
-  onAdd: (e: NewEntry) => void
+  onAdd: (e: NewEntry) => Promise<void> | void
   myFoods: MyFood[]
   onSaveMyFood: (f: Omit<MyFood, 'id' | 'use_count' | 'last_used'>) => void
   onDeleteMyFood: (id: string) => void
@@ -32,9 +32,23 @@ export default function AddSheet({
   const [searchResults, setSearchResults] = useState<OFFResult[]>([])
   const [searching, setSearching] = useState(false)
   const [stapleFilter, setStapleFilter] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [kbOffset, setKbOffset] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function reset() { setPending(null); setGrams('100'); setServings('1'); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function onVVChange() {
+      setKbOffset(Math.max(0, window.innerHeight - vv!.height - vv!.offsetTop))
+    }
+    vv.addEventListener('resize', onVVChange)
+    vv.addEventListener('scroll', onVVChange)
+    return () => { vv.removeEventListener('resize', onVVChange); vv.removeEventListener('scroll', onVVChange) }
+  }, [])
+
+  function reset() { setPending(null); setGrams('100'); setServings('1'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -114,37 +128,37 @@ export default function AddSheet({
     setSearching(false)
   }
 
-  function confirmPending() {
+  async function confirmPending() {
     if (!pending) return
-    if (pending.basis === 'serving') {
-      const qty = Math.max(0.5, parseFloat(servings) || 1)
-      onAdd({
+    setAddError(null)
+    setAdding(true)
+    try {
+      if (pending.basis === 'serving') {
+        const qty = Math.max(0.5, parseFloat(servings) || 1)
+        await onAdd({ meal: pending.meal, name: pending.name, kcal: pending.per100.kcal, p: pending.per100.p, c: pending.per100.c, f: pending.per100.f, qty })
+        onSaveMyFood({ name: pending.name, basis: 'serving', ...pending.per100 })
+        close()
+        return
+      }
+      const g = parseFloat(grams) || 0
+      const k = g / 100
+      await onAdd({
         meal: pending.meal,
-        name: pending.name,
-        kcal: pending.per100.kcal,
-        p: pending.per100.p,
-        c: pending.per100.c,
-        f: pending.per100.f,
-        qty,
+        name: `${pending.name} (${g}g)`,
+        kcal: Math.round(pending.per100.kcal * k),
+        p: +(pending.per100.p * k).toFixed(1),
+        c: +(pending.per100.c * k).toFixed(1),
+        f: +(pending.per100.f * k).toFixed(1),
+        qty: 1,
       })
-      onSaveMyFood({ name: pending.name, basis: 'serving', ...pending.per100 })
+      onSaveMyFood({ name: pending.name, basis: '100g', ...pending.per100 })
       close()
-      return
+    } catch (err) {
+      console.error('[AddSheet] confirmPending failed:', err)
+      setAddError('Could not save — check your connection and try again.')
+    } finally {
+      setAdding(false)
     }
-    const g = parseFloat(grams) || 0
-    const k = g / 100
-    const e = {
-      meal: pending.meal,
-      name: `${pending.name} (${g}g)`,
-      kcal: Math.round(pending.per100.kcal * k),
-      p: +(pending.per100.p * k).toFixed(1),
-      c: +(pending.per100.c * k).toFixed(1),
-      f: +(pending.per100.f * k).toFixed(1),
-      qty: 1,
-    }
-    onAdd(e)
-    onSaveMyFood({ name: pending.name, basis: '100g', ...pending.per100 })
-    close()
   }
 
   function saveCustom() {
@@ -163,7 +177,10 @@ export default function AddSheet({
   return (
     <>
       <div className={`fixed inset-0 bg-ink/50 transition-opacity z-40 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={close} />
-      <div className={`fixed left-0 right-0 bottom-0 max-w-[480px] mx-auto bg-paper rounded-t-[22px] z-50 max-h-[86vh] flex flex-col transition-transform duration-300 ${open ? 'translate-y-0' : 'translate-y-full'}`}>
+      <div
+        className={`fixed left-0 right-0 max-w-[480px] mx-auto bg-paper rounded-t-[22px] z-50 max-h-[86vh] flex flex-col transition-transform duration-300 ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ bottom: kbOffset, maxHeight: kbOffset > 0 ? `${window.innerHeight - kbOffset - 16}px` : undefined }}
+      >
         <div className="w-[42px] h-[5px] bg-line rounded-md mx-auto mt-2.5 mb-1" />
         <div className="flex px-4 gap-1">
           {tabs.map(([t, label]) => (
@@ -185,6 +202,7 @@ export default function AddSheet({
                 <>
                   <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Grams eaten</label>
                   <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)}
+                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
                     className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
                 </>
               )}
@@ -192,11 +210,16 @@ export default function AddSheet({
                 <>
                   <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Servings</label>
                   <input type="number" inputMode="numeric" value={servings} onChange={(e) => setServings(e.target.value)}
+                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }), 100)}
                     className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
                 </>
               )}
               <MealPicker value={pending.meal} onChange={(meal) => setPending({ ...pending, meal })} />
-              <button onClick={confirmPending} className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90">Add to log</button>
+              <button onClick={confirmPending} disabled={adding}
+                className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-60">
+                {adding ? 'Saving…' : 'Add to log'}
+              </button>
+              {addError && <p className="text-center text-terra text-sm mt-2">{addError}</p>}
               <button onClick={reset} className="w-full mt-2 text-sm text-inksoft">Back</button>
             </div>
           ) : tab === 'menu' ? (

@@ -75,9 +75,14 @@ export default function App() {
   const targets = settings[dayType]
 
   async function handleAdd(e: Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>) {
-    await addLog({ ...e, date: dstr })
-    await loadDay()
-    getMyFoods().then(setMyFoods)
+    try {
+      await addLog({ ...e, date: dstr })
+      await loadDay()
+      getMyFoods().then(setMyFoods)
+    } catch (err) {
+      console.error('[LeanKitchen] food_logs insert failed:', err)
+      throw err
+    }
   }
   async function handleQty(id: string, delta: number) {
     const e = entries.find((x) => x.id === id); if (!e) return

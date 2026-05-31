@@ -26,7 +26,11 @@ export async function getLog(date: string): Promise<LogEntry[]> {
 }
 
 export async function addLog(e: Omit<LogEntry, 'id' | 'created_at'>): Promise<LogEntry> {
-  const { data, error } = await supabase.from('food_logs').insert(e).select().single()
+  const { data, error } = await supabase
+    .from('food_logs')
+    .insert({ ...e, user_id: await uid() })
+    .select()
+    .single()
   if (error) throw error
   return data as LogEntry
 }
