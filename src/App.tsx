@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, supabaseReady } from './lib/supabase'
+import { supabase } from './lib/supabase'
 import {
   addLog, copyEntries, deleteLog, deleteMyFood as dbDeleteMyFood, getDayType, getLog, getMyFoods, getRange,
   getSettings, getWeights, saveSettings as dbSaveSettings, setDayType, setWeight, updateQty, upsertMyFood, ymd, type DayTotal,
 } from './lib/db'
 import { DEFAULT_SETTINGS } from './lib/targets'
 import type { DayType, LogEntry, MealId, MyFood, Settings as TSettings, WeightEntry } from './lib/types'
-import Auth from './components/Auth'
 import Summary from './components/Summary'
 import LogList from './components/LogList'
 import AddSheet from './components/AddSheet'
@@ -31,7 +30,17 @@ export default function App() {
   const [sheet, setSheet] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setAuthReady(true) })
+    async function init() {
+      const { data: { session: existing } } = await supabase.auth.getSession()
+      if (existing) {
+        setSession(existing)
+      } else {
+        const { data } = await supabase.auth.signInAnonymously()
+        setSession(data.session)
+      }
+      setAuthReady(true)
+    }
+    init()
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -117,8 +126,7 @@ export default function App() {
     return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
   })()
 
-  if (!authReady) return <div className="min-h-full grid place-items-center text-inksoft">Loading…</div>
-  if (supabaseReady && !session) return <Auth />
+  if (!authReady) return <div className="min-h-full grid place-items-center text-inksoft">Loading...</div>
 
   return (
     <div className="max-w-[480px] mx-auto px-4 pb-28">
@@ -128,7 +136,7 @@ export default function App() {
           <div className="font-display font-black text-[1.45rem] text-forest leading-none">
             Lean <span className="italic font-medium text-terra">Kitchen</span>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="w-12 text-[.7rem] text-inksoft">Sign out</button>
+          <span className="w-12" />
         </div>
         {view === 'today' && (
           <div className="flex items-center justify-center gap-4 mt-3">

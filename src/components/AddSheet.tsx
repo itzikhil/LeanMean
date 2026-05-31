@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react'
 import { MEALS, MENU } from '../lib/menu'
+import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
 import type { LogEntry, MealId, MyFood } from '../lib/types'
+import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
 
 type NewEntry = Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>
-type Tab = 'menu' | 'recents' | 'custom' | 'find'
+type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find'
 interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number } }
 
 export default function AddSheet({
@@ -28,9 +30,10 @@ export default function AddSheet({
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState<OFFResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [stapleFilter, setStapleFilter] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
-  function reset() { setPending(null); setGrams('100'); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false) }
+  function reset() { setPending(null); setGrams('100'); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -44,6 +47,16 @@ export default function AddSheet({
     } else {
       onAdd({ meal: 'snack', name: f.name, kcal: f.kcal, p: f.p, c: f.c, f: f.f, qty: 1 })
       onSaveMyFood({ name: f.name, basis: 'serving', kcal: f.kcal, p: f.p, c: f.c, f: f.f })
+      close()
+    }
+  }
+
+  function chooseStaple(s: Staple) {
+    if (s.basis === '100g') {
+      setPending({ name: s.name, meal: 'snack', basis: '100g', per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f } })
+    } else {
+      onAdd({ meal: 'snack', name: s.name, kcal: s.kcal, p: s.p, c: s.c, f: s.f, qty: 1 })
+      onSaveMyFood({ name: s.name, basis: 'serving', kcal: s.kcal, p: s.p, c: s.c, f: s.f })
       close()
     }
   }
@@ -149,7 +162,7 @@ export default function AddSheet({
     close()
   }
 
-  const tabs: [Tab, string][] = [['menu', 'Menu'], ['recents', 'My foods'], ['custom', 'Custom'], ['find', 'Find / Scan']]
+  const tabs: [Tab, string][] = [['menu', 'Menu'], ['staples', 'Staples'], ['recents', 'My foods'], ['custom', 'Custom'], ['find', 'Find / Scan']]
 
   return (
     <>
@@ -203,6 +216,33 @@ export default function AddSheet({
                 </div>
               )
             })
+          ) : tab === 'staples' ? (
+            <div>
+              <input value={stapleFilter} onChange={(e) => setStapleFilter(e.target.value)} placeholder="Filter staples..."
+                className="w-full text-base px-3.5 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra mb-3" />
+              {STAPLE_CATEGORIES.map((cat) => {
+                const items = STAPLES.filter((s) => s.category === cat && (!stapleFilter || s.name.toLowerCase().includes(stapleFilter.toLowerCase())))
+                if (!items.length) return null
+                return (
+                  <div key={cat} className="mb-3.5">
+                    <p className="text-[.7rem] font-bold uppercase tracking-widest mb-1.5 ml-0.5" style={{ color: STAPLE_CATEGORY_COLORS[cat] }}>{cat}</p>
+                    {items.map((s) => (
+                      <button key={s.name} onClick={() => chooseStaple(s)}
+                        className="w-full flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5 text-left active:bg-white">
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-semibold text-[.92rem]">{s.name}</span>
+                          <span className="block text-[.68rem] text-inksoft">
+                            {s.kcal} kcal {'\u00b7'} {s.p}P / {s.c}C / {s.f}F{s.basis === '100g' ? ' / 100g' : ''}
+                            {s.hint && <>{' \u00b7 '}{s.hint}</>}
+                          </span>
+                        </span>
+                        <span className="text-forest text-xl font-bold">{'\uff0b'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
           ) : tab === 'recents' ? (
             myFoods.length ? myFoods.map((f) => (
               <div key={f.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
