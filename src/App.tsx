@@ -14,8 +14,9 @@ import AddSheet from './components/AddSheet'
 import WeeklyDashboard from './components/WeeklyDashboard'
 import Settings from './components/Settings'
 import ProteinCoach from './components/ProteinCoach'
+import Coach from './components/Coach'
 
-type View = 'today' | 'week' | 'settings'
+type View = 'today' | 'week' | 'coach' | 'settings'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -57,9 +58,13 @@ export default function App() {
   useEffect(() => { loadDay() }, [loadDay])
 
   useEffect(() => {
-    if (!session || view !== 'week') return
-    getRange(14).then(setRange)
-    getWeights(90).then(setWeights)
+    if (!session) return
+    if (view === 'week') {
+      getRange(14).then(setRange)
+      getWeights(90).then(setWeights)
+    } else if (view === 'coach') {
+      getWeights(90).then(setWeights)
+    }
   }, [session, view])
 
   const totals = entries.reduce(
@@ -157,6 +162,9 @@ export default function App() {
       {view === 'week' && (
         <WeeklyDashboard range={range} weights={weights} goalKcal={targets.kcal} goalP={targets.p} onLogWeight={handleLogWeight} />
       )}
+      {view === 'coach' && (
+        <Coach totals={totals} targets={targets} dayType={dayType} weights={weights} />
+      )}
       {view === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} />}
 
       {view === 'today' && (
@@ -167,7 +175,7 @@ export default function App() {
       )}
 
       <nav className="fixed left-0 right-0 bottom-0 max-w-[480px] mx-auto bg-paper2 border-t border-line flex z-20">
-        {([['today', 'Today', '🍽'], ['week', 'Trends', '📈'], ['settings', 'Targets', '🎯']] as [View, string, string][]).map(([v, label, icon]) => (
+        {([['today', 'Today', '🍽'], ['week', 'Trends', '📈'], ['coach', 'Coach', '💬'], ['settings', 'Targets', '🎯']] as [View, string, string][]).map(([v, label, icon]) => (
           <button key={v} onClick={() => setView(v)}
             className={`flex-1 py-3 text-[.7rem] font-bold ${view === v ? 'text-forest' : 'text-inksoft/60'}`}>
             <div className="text-lg leading-none mb-1">{icon}</div>{label}
