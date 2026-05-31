@@ -9,6 +9,7 @@ const baseProps = {
   open: true,
   onClose: vi.fn(),
   onAdd: vi.fn(),
+  onAddMultiple: vi.fn(),
   myFoods: [],
   onSaveMyFood: vi.fn(),
   onDeleteMyFood: vi.fn(),

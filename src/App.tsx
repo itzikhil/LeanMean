@@ -86,6 +86,11 @@ export default function App() {
       throw err
     }
   }
+  async function handleAddMultiple(entries: Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>[]) {
+    const rows = entries.map((e) => ({ ...e, date: dstr }))
+    await addLogs(rows)
+    await loadDay()
+  }
   async function handleQty(id: string, delta: number) {
     const e = entries.find((x) => x.id === id); if (!e) return
     const qty = Math.max(0.5, Math.round((e.qty + delta) * 2) / 2)
@@ -210,7 +215,7 @@ export default function App() {
         ))}
       </nav>
 
-      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} />
+      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} />
     </div>
   )
 }

@@ -7,15 +7,17 @@ import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
 
 type NewEntry = Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>
-type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find'
+type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find' | 'ai'
 interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number }; cookedFactor?: number }
+interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; qty: number; meal: MealId; estimated?: boolean }
 
 export default function AddSheet({
-  open, onClose, onAdd, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
+  open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
 }: {
   open: boolean
   onClose: () => void
   onAdd: (e: NewEntry) => Promise<void> | void
+  onAddMultiple: (entries: NewEntry[]) => Promise<void>
   myFoods: MyFood[]
   onSaveMyFood: (f: Omit<MyFood, 'id' | 'use_count' | 'last_used'>) => void
   onDeleteMyFood: (id: string) => void
@@ -40,8 +42,13 @@ export default function AddSheet({
   const [addError, setAddError] = useState<string | null>(null)
   const [pendingSaved, setPendingSaved] = useState<SavedMeal | null>(null)
   const [savedMealSlot, setSavedMealSlot] = useState<MealId>('breakfast')
+  const [aiText, setAiText] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiItems, setAiItems] = useState<ParsedItem[]>([])
   const [kbOffset, setKbOffset] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
+  const plateRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -54,7 +61,7 @@ export default function AddSheet({
     return () => { vv.removeEventListener('resize', onVVChange); vv.removeEventListener('scroll', onVVChange) }
   }, [])
 
-  function reset() { setPending(null); setPendingSaved(null); setGrams('100'); setServings('1'); setWeighMode('raw'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
+  function reset() { setPending(null); setPendingSaved(null); setGrams('100'); setServings('1'); setWeighMode('raw'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter(''); setAiText(''); setAiError(null); setAiItems([]); setAiLoading(false) }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -180,7 +187,96 @@ export default function AddSheet({
     close()
   }
 
-  const tabs: [Tab, string][] = [['menu', 'Menu'], ['staples', 'Staples'], ['recents', 'My foods'], ['custom', 'Custom'], ['find', 'Find / Scan']]
+  function knownFoodsContext() {
+    const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F (meal: ${m.meal})`).join('\n')
+    const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F per ${s.basis}`).join('\n')
+    return `MENU ITEMS:\n${menuStr}\n\nSTAPLES:\n${stapleStr}`
+  }
+
+  async function onDescribe() {
+    const text = aiText.trim()
+    if (!text) return
+    setAiLoading(true)
+    setAiError(null)
+    setAiItems([])
+    try {
+      const res = await fetch('/api/parse-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, knownFoods: knownFoodsContext() }),
+      })
+      const data = await res.json()
+      if (data.error) { setAiError(data.error); return }
+      if (!data.items?.length) { setAiError('Could not parse any food items. Try rephrasing.'); return }
+      setAiItems(data.items)
+    } catch {
+      setAiError('Failed to parse meal. Check your connection.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  async function onPlatePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAiLoading(true)
+    setAiError(null)
+    setAiItems([])
+    try {
+      const b64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch('/api/parse-plate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }),
+      })
+      const data = await res.json()
+      if (data.error) { setAiError(data.error); return }
+      if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
+      setAiItems(data.items)
+    } catch {
+      setAiError('Failed to analyze photo. Check your connection.')
+    } finally {
+      setAiLoading(false)
+      if (plateRef.current) plateRef.current.value = ''
+    }
+  }
+
+  function removeAiItem(idx: number) {
+    setAiItems(aiItems.filter((_, i) => i !== idx))
+  }
+
+  function updateAiItem(idx: number, field: keyof ParsedItem, value: string | number) {
+    setAiItems(aiItems.map((item, i) => i === idx ? { ...item, [field]: value } : item))
+  }
+
+  async function confirmAiItems() {
+    if (!aiItems.length) return
+    setAdding(true)
+    setAiError(null)
+    try {
+      const entries: NewEntry[] = aiItems.map((item) => ({
+        meal: item.meal,
+        name: item.name,
+        kcal: Math.round(item.kcal),
+        p: +Number(item.p).toFixed(1),
+        c: +Number(item.c).toFixed(1),
+        f: +Number(item.f).toFixed(1),
+        qty: item.qty || 1,
+      }))
+      await onAddMultiple(entries)
+      close()
+    } catch {
+      setAiError('Could not save — check your connection and try again.')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const tabs: [Tab, string][] = [['menu', 'Menu'], ['staples', 'Staples'], ['recents', 'My foods'], ['custom', 'Custom'], ['find', 'Find / Scan'], ['ai', 'AI']]
 
   return (
     <>
@@ -385,7 +481,7 @@ export default function AddSheet({
               <button onClick={saveCustom} className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90">Add to log</button>
               <p className="text-[.74rem] text-inksoft italic mt-2 text-center">Leave kcal blank to estimate from macros (4/4/9).</p>
             </div>
-          ) : (
+          ) : tab === 'find' ? (
             <div className="space-y-4">
               {/* Photo label */}
               <div>
@@ -432,7 +528,90 @@ export default function AddSheet({
 
               {scanMsg && <p className="text-center text-terra text-sm mt-2">{scanMsg}</p>}
             </div>
-          )}
+          ) : tab === 'ai' ? (
+            <div>
+              {aiItems.length > 0 ? (
+                <div>
+                  <p className="text-[.7rem] font-bold uppercase tracking-widest text-forest mb-2 ml-0.5">Confirm items</p>
+                  <p className="text-[.68rem] text-inksoft/70 mb-3 italic">Values are estimates — tap to edit, swipe to remove.</p>
+                  {aiItems.map((item, idx) => (
+                    <div key={idx} className="bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <input value={item.name} onChange={(e) => updateAiItem(idx, 'name', e.target.value)}
+                            className="block w-full font-semibold text-[.92rem] bg-transparent border-none p-0 focus:outline-none" />
+                          <div className="flex gap-2 mt-1">
+                            <span className="text-[.68rem] text-inksoft">
+                              <input type="number" value={item.kcal} onChange={(e) => updateAiItem(idx, 'kcal', +e.target.value)}
+                                className="w-10 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" /> kcal
+                            </span>
+                            <span className="text-[.68rem] text-inksoft">
+                              <input type="number" value={item.p} onChange={(e) => updateAiItem(idx, 'p', +e.target.value)}
+                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />P
+                            </span>
+                            <span className="text-[.68rem] text-inksoft">
+                              <input type="number" value={item.c} onChange={(e) => updateAiItem(idx, 'c', +e.target.value)}
+                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />C
+                            </span>
+                            <span className="text-[.68rem] text-inksoft">
+                              <input type="number" value={item.f} onChange={(e) => updateAiItem(idx, 'f', +e.target.value)}
+                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />F
+                            </span>
+                          </div>
+                          <div className="mt-1.5">
+                            <select value={item.meal} onChange={(e) => updateAiItem(idx, 'meal', e.target.value)}
+                              className="text-[.7rem] bg-white border border-line rounded px-1.5 py-0.5 text-inksoft">
+                              {MEALS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                            {item.estimated && <span className="ml-2 text-[.65rem] text-terra italic">estimated</span>}
+                          </div>
+                        </div>
+                        <button onClick={() => removeAiItem(idx)} className="text-macp/40 active:text-macp px-1 pt-1">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="bg-paper2 border border-line rounded-[11px] px-3 py-2 mt-2 text-center text-[.78rem] font-semibold text-inksoft">
+                    Total: {Math.round(aiItems.reduce((s, i) => s + (+i.kcal), 0))} kcal · {Math.round(aiItems.reduce((s, i) => s + (+i.p), 0))}P / {Math.round(aiItems.reduce((s, i) => s + (+i.c), 0))}C / {Math.round(aiItems.reduce((s, i) => s + (+i.f), 0))}F
+                  </div>
+                  <button onClick={confirmAiItems} disabled={adding}
+                    className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-60">
+                    {adding ? 'Saving…' : `Add ${aiItems.length} items to log`}
+                  </button>
+                  <button onClick={() => setAiItems([])} className="w-full mt-2 text-sm text-inksoft">Back</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Describe meal */}
+                  <div>
+                    <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Describe your meal</label>
+                    <form onSubmit={(ev) => { ev.preventDefault(); onDescribe() }}>
+                      <textarea value={aiText} onChange={(e) => setAiText(e.target.value)}
+                        placeholder="e.g. two eggs, toast with butter, and a coffee with milk"
+                        rows={3}
+                        className="w-full text-base px-3.5 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra resize-none" />
+                      <button type="submit" disabled={aiLoading || !aiText.trim()}
+                        className="w-full mt-2 bg-forest text-white font-bold py-3 rounded-xl active:opacity-90 disabled:opacity-50">
+                        {aiLoading ? 'Parsing…' : 'Parse meal'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Plate photo */}
+                  <div>
+                    <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Or snap your plate</label>
+                    <input ref={plateRef} type="file" accept="image/*" capture="environment" onChange={onPlatePhoto} className="hidden" />
+                    <button onClick={() => plateRef.current?.click()} disabled={aiLoading}
+                      className="w-full flex items-center justify-center gap-2 bg-terra text-white font-bold py-3 rounded-xl active:opacity-90 disabled:opacity-50">
+                      {aiLoading ? 'Analyzing…' : '📸 Snap plate'}
+                    </button>
+                  </div>
+
+                  {aiError && <p className="text-center text-terra text-sm">{aiError}</p>}
+                  <p className="text-[.68rem] text-inksoft/60 italic text-center">AI estimates macros using Gemini. Review before saving.</p>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </>
