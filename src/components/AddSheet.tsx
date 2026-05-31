@@ -8,7 +8,7 @@ import BarcodeScanner from './BarcodeScanner'
 
 type NewEntry = Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>
 type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find'
-interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number } }
+interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number }; cookedFactor?: number }
 
 export default function AddSheet({
   open, onClose, onAdd, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
@@ -29,6 +29,7 @@ export default function AddSheet({
   const [pending, setPending] = useState<Pending | null>(null)
   const [grams, setGrams] = useState('100')
   const [servings, setServings] = useState('1')
+  const [weighMode, setWeighMode] = useState<'raw' | 'cooked'>('raw')
   const [scanMsg, setScanMsg] = useState('')
   const [photoLoading, setPhotoLoading] = useState(false)
   const [searchQ, setSearchQ] = useState('')
@@ -53,7 +54,7 @@ export default function AddSheet({
     return () => { vv.removeEventListener('resize', onVVChange); vv.removeEventListener('scroll', onVVChange) }
   }, [])
 
-  function reset() { setPending(null); setPendingSaved(null); setGrams('100'); setServings('1'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
+  function reset() { setPending(null); setPendingSaved(null); setGrams('100'); setServings('1'); setWeighMode('raw'); setAddError(null); setScanMsg(''); setPhotoLoading(false); setSearchQ(''); setSearchResults([]); setSearching(false); setStapleFilter('') }
   function close() { reset(); setTab('menu'); onClose() }
 
   function addMenu(code: string) {
@@ -72,7 +73,7 @@ export default function AddSheet({
   }
 
   function chooseStaple(s: Staple) {
-    setPending({ name: s.name, meal: 'snack', basis: s.basis, per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f } })
+    setPending({ name: s.name, meal: 'snack', basis: s.basis, per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f }, cookedFactor: s.cookedFactor })
   }
 
   async function onBarcode(code: string) {
@@ -146,10 +147,12 @@ export default function AddSheet({
         return
       }
       const g = parseFloat(grams) || 0
-      const k = g / 100
+      const rawG = weighMode === 'cooked' && pending.cookedFactor ? g / pending.cookedFactor : g
+      const k = rawG / 100
+      const label = weighMode === 'cooked' ? `${g}g cooked` : `${g}g`
       await onAdd({
         meal: pending.meal,
-        name: `${pending.name} (${g}g)`,
+        name: `${pending.name} (${label})`,
         kcal: Math.round(pending.per100.kcal * k),
         p: +(pending.per100.p * k).toFixed(1),
         c: +(pending.per100.c * k).toFixed(1),
@@ -203,9 +206,23 @@ export default function AddSheet({
               <p className="text-[.8rem] text-inksoft mb-3">
                 {pending.basis === '100g' ? 'Per 100g' : 'Per serving'}: {pending.per100.kcal} kcal · {pending.per100.p}P / {pending.per100.c}C / {pending.per100.f}F
               </p>
+              {pending.basis === '100g' && pending.cookedFactor && (
+                <div className="flex gap-1 mb-3">
+                  <button onClick={() => setWeighMode('raw')}
+                    className={`flex-1 py-2 rounded-lg text-[.82rem] font-bold border ${weighMode === 'raw' ? 'bg-forest text-white border-forest' : 'bg-white text-inksoft border-line'}`}>
+                    Raw
+                  </button>
+                  <button onClick={() => setWeighMode('cooked')}
+                    className={`flex-1 py-2 rounded-lg text-[.82rem] font-bold border ${weighMode === 'cooked' ? 'bg-forest text-white border-forest' : 'bg-white text-inksoft border-line'}`}>
+                    Cooked
+                  </button>
+                </div>
+              )}
               {pending.basis === '100g' && (
                 <>
-                  <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Grams eaten</label>
+                  <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">
+                    Grams {weighMode === 'cooked' && pending.cookedFactor ? '(cooked weight)' : 'eaten'}
+                  </label>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => setGrams(String(Math.max(0, (parseFloat(grams) || 0) - 10)))}
                       className="w-11 h-11 rounded-full border border-line bg-white text-forest text-xl font-bold active:bg-paper flex-shrink-0">−</button>

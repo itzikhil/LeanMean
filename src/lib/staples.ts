@@ -3,6 +3,7 @@ export interface Staple {
   category: 'Protein' | 'Eggs & Dairy' | 'Carbs' | 'Fruit & Veg' | 'Fats & Extras'
   basis: '100g' | 'serving'
   hint?: string
+  cookedFactor?: number  // cooked weight ÷ raw weight
   kcal: number; p: number; c: number; f: number
 }
 
@@ -18,10 +19,10 @@ export const STAPLE_CATEGORY_COLORS: Record<string, string> = {
 
 export const STAPLES: Staple[] = [
   // ---- Protein (raw, per 100g) ----
-  { name: 'Chicken breast (raw)', category: 'Protein', basis: '100g', kcal: 120, p: 23, c: 0, f: 2.6 },
-  { name: 'Chicken thigh, boneless skinless (raw)', category: 'Protein', basis: '100g', kcal: 145, p: 19, c: 0, f: 7.5 },
-  { name: 'Beef mince 5% (raw)', category: 'Protein', basis: '100g', kcal: 149, p: 21, c: 0, f: 5 },
-  { name: 'Salmon fillet (raw)', category: 'Protein', basis: '100g', kcal: 208, p: 20, c: 0, f: 13 },
+  { name: 'Chicken breast (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.75, kcal: 120, p: 23, c: 0, f: 2.6 },
+  { name: 'Chicken thigh, boneless skinless (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.75, kcal: 145, p: 19, c: 0, f: 7.5 },
+  { name: 'Beef mince 5% (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.7, kcal: 149, p: 21, c: 0, f: 5 },
+  { name: 'Salmon fillet (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.75, kcal: 208, p: 20, c: 0, f: 13 },
   { name: 'White fish / cod (raw)', category: 'Protein', basis: '100g', kcal: 82, p: 18, c: 0, f: 0.7 },
   { name: 'Tuna, canned in water (drained)', category: 'Protein', basis: '100g', kcal: 116, p: 26, c: 0, f: 1 },
   { name: 'Turkey ham', category: 'Protein', basis: '100g', kcal: 88, p: 19.5, c: 0.5, f: 0.9 },
@@ -38,12 +39,12 @@ export const STAPLES: Staple[] = [
   { name: 'Mozzarella', category: 'Eggs & Dairy', basis: '100g', kcal: 250, p: 22, c: 2, f: 17 },
 
   // ---- Carbs ----
-  { name: 'White rice (dry)', category: 'Carbs', basis: '100g', hint: 'dry; \u2248 \u00d72.7 cooked', kcal: 360, p: 7, c: 79, f: 0.6 },
+  { name: 'White rice (dry)', category: 'Carbs', basis: '100g', cookedFactor: 2.7, hint: 'dry; \u2248 \u00d72.7 cooked', kcal: 360, p: 7, c: 79, f: 0.6 },
   { name: 'White rice (cooked)', category: 'Carbs', basis: '100g', kcal: 130, p: 2.7, c: 28, f: 0.3 },
-  { name: 'Potato (raw)', category: 'Carbs', basis: '100g', kcal: 77, p: 2, c: 17, f: 0.1 },
-  { name: 'Sweet potato (raw)', category: 'Carbs', basis: '100g', kcal: 86, p: 1.6, c: 20, f: 0.1 },
-  { name: 'Oats (dry)', category: 'Carbs', basis: '100g', kcal: 379, p: 13, c: 67, f: 7 },
-  { name: 'Pasta (dry)', category: 'Carbs', basis: '100g', kcal: 360, p: 12, c: 72, f: 1.5 },
+  { name: 'Potato (raw)', category: 'Carbs', basis: '100g', cookedFactor: 0.9, kcal: 77, p: 2, c: 17, f: 0.1 },
+  { name: 'Sweet potato (raw)', category: 'Carbs', basis: '100g', cookedFactor: 0.9, kcal: 86, p: 1.6, c: 20, f: 0.1 },
+  { name: 'Oats (dry)', category: 'Carbs', basis: '100g', cookedFactor: 3.0, kcal: 379, p: 13, c: 67, f: 7 },
+  { name: 'Pasta (dry)', category: 'Carbs', basis: '100g', cookedFactor: 2.3, kcal: 360, p: 12, c: 72, f: 1.5 },
   { name: 'Bread', category: 'Carbs', basis: 'serving', hint: '1 slice \u2248 40g', kcal: 100, p: 4, c: 18, f: 1 },
   { name: 'Rice cake', category: 'Carbs', basis: 'serving', hint: '1 cake \u2248 9g', kcal: 35, p: 0.7, c: 7.2, f: 0.2 },
 
