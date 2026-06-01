@@ -79,6 +79,12 @@ create table if not exists public.saved_meals (
 );
 create index if not exists saved_meals_user on public.saved_meals(user_id);
 
+-- ---------- Migrations (idempotent — safe to re-run on existing DB) ----------
+alter table public.food_logs add column if not exists fb numeric not null default 0;
+alter table public.my_foods add column if not exists fb numeric not null default 0;
+alter table public.settings add column if not exists training_fb numeric not null default 30;
+alter table public.settings add column if not exists rest_fb numeric not null default 30;
+
 -- ---------- Row Level Security ----------
 alter table public.food_logs enable row level security;
 alter table public.my_foods enable row level security;
