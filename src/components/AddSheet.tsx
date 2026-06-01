@@ -572,11 +572,13 @@ export default function AddSheet({
                 )}
               </div>
 
-              {/* Barcode scanner */}
-              <div>
-                <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Or scan a barcode</label>
-                <BarcodeScanner onDetected={onBarcode} onClose={() => setTab('menu')} />
-              </div>
+              {/* Barcode scanner — unmounted during photo capture to avoid camera conflict */}
+              {!photoLoading && (
+                <div>
+                  <label className="block text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Or scan a barcode</label>
+                  <BarcodeScanner onDetected={onBarcode} onClose={() => setTab('menu')} />
+                </div>
+              )}
 
               {scanMsg && <p className="text-center text-terra text-sm mt-2">{scanMsg}</p>}
             </div>
