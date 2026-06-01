@@ -215,17 +215,22 @@ export default function AddSheet({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function fetchWithRetry(url: string, body: string): Promise<any> {
     for (let attempt = 0; attempt < 2; attempt++) {
+      console.log(`[fetch] attempt ${attempt + 1} → ${url} (${(body.length / 1024).toFixed(0)}KB)`)
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
       })
-      if (res.ok) return res.json()
-      // On non-OK, try to parse error body
+      console.log(`[fetch] attempt ${attempt + 1} status: ${res.status}`)
+      if (res.ok) {
+        const json = await res.json()
+        console.log(`[fetch] attempt ${attempt + 1} OK, parsed JSON keys:`, Object.keys(json))
+        return json
+      }
       let data: { error: string }
       try { data = await res.json() } catch { data = { error: `Server error (${res.status})` } }
-      // Retry once on 5xx (cold-start / timeout)
-      if (res.status >= 500 && attempt === 0) continue
+      console.warn(`[fetch] attempt ${attempt + 1} error:`, data.error)
+      if (res.status >= 500 && attempt === 0) { console.log('[fetch] retrying…'); continue }
       return data
     }
     return { error: 'Request failed after retry' }
