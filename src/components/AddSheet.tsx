@@ -98,33 +98,27 @@ export default function AddSheet({
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    console.log('[scan] 1. file selected:', file.name, file.type, (file.size / 1024).toFixed(0) + 'KB')
     setPhotoLoading(true)
     setScanMsg('')
     try {
       let b64: string
       try {
         b64 = await resizeImage(file, 1024, 0.8)
-        console.log('[scan] 2. resized:', (b64.length / 1024).toFixed(0) + 'KB base64')
       } catch (resizeErr) {
         const msg = resizeErr instanceof Error ? resizeErr.message : 'Unknown resize error'
-        console.error('[scan] 2. resize FAILED:', resizeErr)
         setScanMsg(`Image processing failed: ${msg}. Try a different photo or add manually.`)
         setPhotoLoading(false)
         if (fileRef.current) fileRef.current.value = ''
         return
       }
       if (b64.length > 4_000_000) {
-        console.warn('[scan] 3. payload too large:', (b64.length / 1024).toFixed(0) + 'KB')
         setScanMsg('Image still too large after compression. Try taking a closer/simpler photo.')
         setPhotoLoading(false)
         if (fileRef.current) fileRef.current.value = ''
         return
       }
-      console.log('[scan] 3. POSTing to /api/parse-label…')
       const body = JSON.stringify({ image: b64 })
       const data = await fetchWithRetry('/api/parse-label', body)
-      console.log('[scan] 4. response:', JSON.stringify(data).slice(0, 200))
       if (data.error) { setScanMsg(errorToString(data.error)); setPhotoLoading(false); return }
       const basis = data.basis === 'serving' ? 'serving' as const : '100g' as const
       setPending({
@@ -133,9 +127,7 @@ export default function AddSheet({
         basis,
         per100: { kcal: Math.round(data.kcal || 0), p: +(data.p || 0), c: +(data.c || 0), f: +(data.f || 0) },
       })
-      console.log('[scan] 5. setPending done')
     } catch (err) {
-      console.error('[scan] CAUGHT:', err)
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setScanMsg(`Label scan failed: ${msg}`)
     }
@@ -215,22 +207,15 @@ export default function AddSheet({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function fetchWithRetry(url: string, body: string): Promise<any> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      console.log(`[fetch] attempt ${attempt + 1} → ${url} (${(body.length / 1024).toFixed(0)}KB)`)
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
       })
-      console.log(`[fetch] attempt ${attempt + 1} status: ${res.status}`)
-      if (res.ok) {
-        const json = await res.json()
-        console.log(`[fetch] attempt ${attempt + 1} OK, parsed JSON keys:`, Object.keys(json))
-        return json
-      }
+      if (res.ok) return res.json()
       let data: { error: string }
       try { data = await res.json() } catch { data = { error: `Server error (${res.status})` } }
-      console.warn(`[fetch] attempt ${attempt + 1} error:`, data.error)
-      if (res.status >= 500 && attempt === 0) { console.log('[fetch] retrying…'); continue }
+      if (res.status >= 500 && attempt === 0) continue
       return data
     }
     return { error: 'Request failed after retry' }
