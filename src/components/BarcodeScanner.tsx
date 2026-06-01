@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 
 export default function BarcodeScanner({
@@ -7,23 +7,35 @@ export default function BarcodeScanner({
   onDetected: (code: string) => void
   onClose: () => void
 }) {
+  // Stable ref so the useEffect doesn't re-run (and tear down/recreate the
+  // scanner) every time AddSheet re-renders with a new onDetected reference.
+  const cbRef = useRef(onDetected)
+  cbRef.current = onDetected
+
   useEffect(() => {
-    const scanner = new Html5Qrcode('bc-reader')
     let active = true
-    scanner
-      .start(
+    let scanner: Html5Qrcode | null = null
+    try {
+      scanner = new Html5Qrcode('bc-reader')
+    } catch (e) {
+      console.error('[BarcodeScanner] init failed:', e)
+      return
+    }
+    const s = scanner
+    s.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 260, height: 160 } },
         (decoded) => {
-          if (active) { active = false; onDetected(decoded) }
+          if (active) { active = false; cbRef.current(decoded) }
         },
         () => {},
       )
-      .catch((e) => console.error('scanner', e))
+      .catch((e) => console.error('[BarcodeScanner] start failed:', e))
     return () => {
-      scanner.stop().then(() => scanner.clear()).catch(() => {})
+      active = false
+      s.stop().then(() => s.clear()).catch(() => {})
     }
-  }, [onDetected])
+  }, []) // stable — runs once on mount, cleans up on unmount
 
   return (
     <div className="text-center">
