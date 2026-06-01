@@ -118,13 +118,9 @@ export default function AddSheet({
         if (fileRef.current) fileRef.current.value = ''
         return
       }
-      const res = await fetch('/api/parse-label', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: b64 }),
-      })
-      const data = await res.json()
-      if (data.error) { setScanMsg(data.error); setPhotoLoading(false); return }
+      const body = JSON.stringify({ image: b64 })
+      const data = await fetchWithRetry('/api/parse-label', body)
+      if (data.error) { setScanMsg(errorToString(data.error)); setPhotoLoading(false); return }
       const basis = data.basis === 'serving' ? 'serving' as const : '100g' as const
       setPending({
         name: data.name || 'Scanned food',
@@ -201,6 +197,33 @@ export default function AddSheet({
     close()
   }
 
+  /** Stringify any error value (Vercel 504 returns {error: {code, message}} — an object, not a string). */
+  function errorToString(err: unknown): string {
+    if (typeof err === 'string') return err
+    if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message)
+    return String(err)
+  }
+
+  /** POST JSON with one silent retry (absorbs cold-start timeouts). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function fetchWithRetry(url: string, body: string): Promise<any> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+      if (res.ok) return res.json()
+      // On non-OK, try to parse error body
+      let data: { error: string }
+      try { data = await res.json() } catch { data = { error: `Server error (${res.status})` } }
+      // Retry once on 5xx (cold-start / timeout)
+      if (res.status >= 500 && attempt === 0) continue
+      return data
+    }
+    return { error: 'Request failed after retry' }
+  }
+
   function knownFoodsContext() {
     const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F (meal: ${m.meal})`).join('\n')
     const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F per ${s.basis}`).join('\n')
@@ -214,17 +237,13 @@ export default function AddSheet({
     setAiError(null)
     setAiItems([])
     try {
-      const res = await fetch('/api/parse-meal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, knownFoods: knownFoodsContext() }),
-      })
-      const data = await res.json()
-      if (data.error) { setAiError(data.error); return }
+      const data = await fetchWithRetry('/api/parse-meal', JSON.stringify({ text, knownFoods: knownFoodsContext() }))
+      if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not parse any food items. Try rephrasing.'); return }
       setAiItems(data.items)
-    } catch {
-      setAiError('Failed to parse meal. Check your connection.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setAiError(`Failed to parse meal: ${msg}`)
     } finally {
       setAiLoading(false)
     }
@@ -249,13 +268,8 @@ export default function AddSheet({
         setAiError('Image still too large after compression. Try a simpler photo.')
         return
       }
-      const res = await fetch('/api/parse-plate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }),
-      })
-      const data = await res.json()
-      if (data.error) { setAiError(data.error); return }
+      const data = await fetchWithRetry('/api/parse-plate', JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }))
+      if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
       setAiItems(data.items)
     } catch (err) {
