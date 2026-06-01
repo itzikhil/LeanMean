@@ -15,6 +15,7 @@ import AddSheet from './components/AddSheet'
 import WeeklyDashboard from './components/WeeklyDashboard'
 import Settings from './components/Settings'
 import ProteinCoach from './components/ProteinCoach'
+import QuickSuggestions from './components/QuickSuggestions'
 import Coach from './components/Coach'
 
 type View = 'today' | 'week' | 'coach' | 'settings'
@@ -90,6 +91,7 @@ export default function App() {
     const rows = entries.map((e) => ({ ...e, date: dstr }))
     await addLogs(rows)
     await loadDay()
+    getMyFoods().then(setMyFoods)
   }
   async function handleQty(id: string, delta: number) {
     const e = entries.find((x) => x.id === id); if (!e) return
@@ -187,6 +189,7 @@ export default function App() {
       {view === 'today' && (
         <>
           <div className="mt-3"><Summary totals={totals} targets={targets} dayType={dayType} onToggleDay={toggleDay} /></div>
+          <QuickSuggestions onAdd={handleAdd} />
           <ProteinCoach totals={totals} targets={targets} />
           <LogList entries={entries} onQty={handleQty} onDelete={handleDelete} onCopyMeal={handleCopyMeal} onCopyDay={handleCopyDay} onSaveMeal={handleSaveMeal} />
         </>

@@ -169,6 +169,44 @@ export async function addLogs(entries: Omit<LogEntry, 'id' | 'created_at'>[]): P
   if (error) throw error
 }
 
+// ---------- Time-of-day suggestions ----------
+export interface Suggestion { name: string; kcal: number; p: number; c: number; f: number; meal: MealId; count: number }
+
+export async function getTimeSuggestions(window: 'morning' | 'midday' | 'evening'): Promise<Suggestion[]> {
+  // Map window to hour ranges
+  const ranges = { morning: [5, 11], midday: [11, 16], evening: [16, 23] } as const
+  const [startHour, endHour] = ranges[window]
+
+  // Query last 30 days of logs with created_at timestamps
+  const since = new Date()
+  since.setDate(since.getDate() - 30)
+  const { data, error } = await supabase
+    .from('food_logs')
+    .select('name,kcal,p,c,f,meal,created_at')
+    .gte('date', ymd(since))
+  if (error) throw error
+
+  // Bucket by hour of created_at
+  const freq = new Map<string, { name: string; kcal: number; p: number; c: number; f: number; meal: MealId; count: number }>()
+  for (const r of data ?? []) {
+    if (!r.created_at) continue
+    const hour = new Date(r.created_at).getHours()
+    if (hour < startHour || hour >= endHour) continue
+    const key = r.name as string
+    const existing = freq.get(key)
+    if (existing) {
+      existing.count++
+    } else {
+      freq.set(key, { name: key, kcal: r.kcal, p: r.p, c: r.c, f: r.f, meal: r.meal as MealId, count: 1 })
+    }
+  }
+
+  return Array.from(freq.values())
+    .filter((s) => s.count >= 3)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6)
+}
+
 // ---------- Weekly aggregate ----------
 export interface DayTotal { date: string; kcal: number; p: number; c: number; f: number }
 

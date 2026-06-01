@@ -297,13 +297,17 @@ export default function AddSheet({
       const entries: NewEntry[] = aiItems.map((item) => ({
         meal: item.meal,
         name: item.name,
-        kcal: Math.round(item.kcal),
+        kcal: Math.round(+item.kcal),
         p: +Number(item.p).toFixed(1),
         c: +Number(item.c).toFixed(1),
         f: +Number(item.f).toFixed(1),
         qty: item.qty || 1,
       }))
       await onAddMultiple(entries)
+      // Save each AI-parsed item to My Foods for future one-tap re-logging
+      for (const item of entries) {
+        onSaveMyFood({ name: item.name, basis: 'serving', kcal: item.kcal, p: item.p, c: item.c, f: item.f })
+      }
       close()
     } catch {
       setAiError('Could not save — check your connection and try again.')
