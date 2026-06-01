@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MENU } from '../lib/menu'
+import { STAPLES } from '../lib/staples'
 import type { Targets, WeightEntry } from '../lib/types'
 
 interface Message {
@@ -40,6 +41,13 @@ export default function Coach({ totals, targets, dayType, weights }: Props) {
       f: targets.f - totals.f,
     }
 
+    const now = new Date()
+    const hour = now.getHours()
+    const timeLabel = hour < 10 ? 'early morning' : hour < 12 ? 'late morning' : hour < 14 ? 'midday' : hour < 17 ? 'afternoon' : hour < 20 ? 'evening' : 'late evening'
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const pctKcal = targets.kcal > 0 ? Math.round((totals.kcal / targets.kcal) * 100) : 0
+    const pctP = targets.p > 0 ? Math.round((totals.p / targets.p) * 100) : 0
+
     const sorted = [...weights].sort((a, b) => a.date.localeCompare(b.date))
     const latest = sorted.at(-1)
     let weightLine = 'No weight data'
@@ -62,15 +70,24 @@ export default function Coach({ totals, targets, dayType, weights }: Props) {
       .map((m) => `${m.code} ${m.name} (${m.meal}): ${m.kcal} kcal, ${m.p}p ${m.c}c ${m.f}f`)
       .join('\n')
 
-    return `TODAY (${dayType} day):
-Eaten: ${Math.round(totals.kcal)} kcal, ${Math.round(totals.p)}g protein, ${Math.round(totals.c)}g carbs, ${Math.round(totals.f)}g fat
-Targets: ${targets.kcal} kcal, ${targets.p}g protein, ${targets.c}g carbs, ${targets.f}g fat
-Remaining: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.p)}g protein, ${Math.round(remaining.c)}g carbs, ${Math.round(remaining.f)}g fat
+    const stapleStr = STAPLES
+      .map((s) => `${s.name}: ${s.kcal} kcal, ${s.p}p ${s.c}c ${s.f}f per ${s.basis}`)
+      .join('\n')
+
+    return `TIME: ${timeStr} (${timeLabel})
+
+TODAY (${dayType} day):
+Eaten so far: ${Math.round(totals.kcal)} kcal (${pctKcal}% of target), ${Math.round(totals.p)}g protein (${pctP}%), ${Math.round(totals.c)}g carbs, ${Math.round(totals.f)}g fat
+Full-day targets: ${targets.kcal} kcal, ${targets.p}g protein, ${targets.c}g carbs, ${targets.f}g fat
+Still available: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.p)}g protein, ${Math.round(remaining.c)}g carbs, ${Math.round(remaining.f)}g fat
 
 WEIGHT: ${weightLine}
 
-MENU:
-${menuStr}`
+MENU MEALS:
+${menuStr}
+
+STAPLES:
+${stapleStr}`
   }, [totals, targets, dayType, weights])
 
   async function send(text: string) {
