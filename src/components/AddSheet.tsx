@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { MEALS, MENU } from '../lib/menu'
-import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS } from '../lib/staples'
+import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS, matchCookedFactor } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
 import { resizeImage } from '../lib/resizeImage'
 import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem } from '../lib/types'
@@ -10,7 +10,7 @@ import BarcodeScanner from './BarcodeScanner'
 type NewEntry = Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>
 type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find' | 'ai'
 interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number }; cookedFactor?: number }
-interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; qty: number; meal: MealId; estimated?: boolean }
+interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; qty: number; meal: MealId; estimated?: boolean; cookedFactor?: number; weighMode?: 'raw' | 'cooked' }
 
 export default function AddSheet({
   open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
@@ -89,7 +89,7 @@ export default function AddSheet({
     try {
       const r = await lookupBarcode(code)
       if (!r) { setScanMsg(`No match for ${code}. Add it as a custom food.`); return }
-      setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f } })
+      setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f }, cookedFactor: matchCookedFactor(r.name) })
     } catch {
       setScanMsg('Lookup failed (offline?). Try custom entry.')
     }
@@ -121,11 +121,13 @@ export default function AddSheet({
       const data = await fetchWithRetry('/api/parse-label', body)
       if (data.error) { setScanMsg(errorToString(data.error)); setPhotoLoading(false); return }
       const basis = data.basis === 'serving' ? 'serving' as const : '100g' as const
+      const scanName = data.name || 'Scanned food'
       setPending({
-        name: data.name || 'Scanned food',
+        name: scanName,
         meal: 'snack',
         basis,
         per100: { kcal: Math.round(data.kcal || 0), p: +(data.p || 0), c: +(data.c || 0), f: +(data.f || 0) },
+        cookedFactor: matchCookedFactor(scanName),
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -237,7 +239,7 @@ export default function AddSheet({
       const data = await fetchWithRetry('/api/parse-meal', JSON.stringify({ text, knownFoods: knownFoodsContext() }))
       if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not parse any food items. Try rephrasing.'); return }
-      setAiItems(data.items)
+      setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setAiError(`Failed to parse meal: ${msg}`)
@@ -268,7 +270,7 @@ export default function AddSheet({
       const data = await fetchWithRetry('/api/parse-plate', JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }))
       if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
-      setAiItems(data.items)
+      setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setAiError(`Photo analysis failed: ${msg}`)
@@ -544,7 +546,7 @@ export default function AddSheet({
                 {searchResults.length > 0 && (
                   <div className="mt-2 space-y-1.5">
                     {searchResults.map((r, i) => (
-                      <button key={i} onClick={() => setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f } })}
+                      <button key={i} onClick={() => setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f }, cookedFactor: matchCookedFactor(r.name) })}
                         className="w-full flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 text-left active:bg-white">
                         <span className="flex-1 min-w-0">
                           <span className="block font-semibold text-[.92rem] truncate">{r.name}</span>
@@ -573,7 +575,13 @@ export default function AddSheet({
                 <div>
                   <p className="text-[.7rem] font-bold uppercase tracking-widest text-forest mb-2 ml-0.5">Confirm items</p>
                   <p className="text-[.68rem] text-inksoft/70 mb-3 italic">Values are estimates — tap to edit, swipe to remove.</p>
-                  {aiItems.map((item, idx) => (
+                  {aiItems.map((item, idx) => {
+                    const isCooked = item.weighMode === 'cooked' && item.cookedFactor
+                    const dispKcal = isCooked ? Math.round(+item.kcal / item.cookedFactor!) : +item.kcal
+                    const dispP = isCooked ? +( +item.p / item.cookedFactor!).toFixed(1) : +item.p
+                    const dispC = isCooked ? +( +item.c / item.cookedFactor!).toFixed(1) : +item.c
+                    const dispF = isCooked ? +( +item.f / item.cookedFactor!).toFixed(1) : +item.f
+                    return (
                     <div key={idx} className="bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
@@ -581,22 +589,38 @@ export default function AddSheet({
                             className="block w-full font-semibold text-[.92rem] bg-transparent border-none p-0 focus:outline-none" />
                           <div className="flex gap-2 mt-1">
                             <span className="text-[.68rem] text-inksoft">
-                              <input type="number" value={item.kcal} onChange={(e) => updateAiItem(idx, 'kcal', +e.target.value)}
-                                className="w-10 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" /> kcal
+                              <input type="number" value={dispKcal} onChange={(e) => {
+                                const v = +e.target.value; updateAiItem(idx, 'kcal', isCooked ? Math.round(v * item.cookedFactor!) : v)
+                              }} className="w-10 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" /> kcal
                             </span>
                             <span className="text-[.68rem] text-inksoft">
-                              <input type="number" value={item.p} onChange={(e) => updateAiItem(idx, 'p', +e.target.value)}
-                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />P
+                              <input type="number" value={dispP} onChange={(e) => {
+                                const v = +e.target.value; updateAiItem(idx, 'p', isCooked ? +(v * item.cookedFactor!).toFixed(1) : v)
+                              }} className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />P
                             </span>
                             <span className="text-[.68rem] text-inksoft">
-                              <input type="number" value={item.c} onChange={(e) => updateAiItem(idx, 'c', +e.target.value)}
-                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />C
+                              <input type="number" value={dispC} onChange={(e) => {
+                                const v = +e.target.value; updateAiItem(idx, 'c', isCooked ? +(v * item.cookedFactor!).toFixed(1) : v)
+                              }} className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />C
                             </span>
                             <span className="text-[.68rem] text-inksoft">
-                              <input type="number" value={item.f} onChange={(e) => updateAiItem(idx, 'f', +e.target.value)}
-                                className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />F
+                              <input type="number" value={dispF} onChange={(e) => {
+                                const v = +e.target.value; updateAiItem(idx, 'f', isCooked ? +(v * item.cookedFactor!).toFixed(1) : v)
+                              }} className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />F
                             </span>
                           </div>
+                          {item.cookedFactor && (
+                            <div className="flex gap-1 mt-1.5">
+                              <button onClick={() => updateAiItem(idx, 'weighMode', 'raw')}
+                                className={`px-2 py-0.5 rounded text-[.68rem] font-bold border ${item.weighMode !== 'cooked' ? 'bg-forest text-white border-forest' : 'bg-white text-inksoft border-line'}`}>
+                                Raw
+                              </button>
+                              <button onClick={() => updateAiItem(idx, 'weighMode', 'cooked')}
+                                className={`px-2 py-0.5 rounded text-[.68rem] font-bold border ${item.weighMode === 'cooked' ? 'bg-forest text-white border-forest' : 'bg-white text-inksoft border-line'}`}>
+                                Cooked
+                              </button>
+                            </div>
+                          )}
                           <div className="mt-1.5">
                             <select value={item.meal} onChange={(e) => updateAiItem(idx, 'meal', e.target.value)}
                               className="text-[.7rem] bg-white border border-line rounded px-1.5 py-0.5 text-inksoft">
@@ -608,7 +632,8 @@ export default function AddSheet({
                         <button onClick={() => removeAiItem(idx)} className="text-macp/40 active:text-macp px-1 pt-1">✕</button>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                   <div className="bg-paper2 border border-line rounded-[11px] px-3 py-2 mt-2 text-center text-[.78rem] font-semibold text-inksoft">
                     Total: {Math.round(aiItems.reduce((s, i) => s + (+i.kcal), 0))} kcal · {Math.round(aiItems.reduce((s, i) => s + (+i.p), 0))}P / {Math.round(aiItems.reduce((s, i) => s + (+i.c), 0))}C / {Math.round(aiItems.reduce((s, i) => s + (+i.f), 0))}F
                   </div>

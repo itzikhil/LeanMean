@@ -89,3 +89,24 @@ export const STAPLES: Staple[] = [
   { name: 'Peanut butter', category: 'Fats & Extras', basis: 'serving', hint: '1 tbsp \u2248 16g', kcal: 95, p: 4, c: 3, f: 8 },
   { name: 'Almonds', category: 'Fats & Extras', basis: '100g', hint: '\u2248 23 nuts', kcal: 580, p: 21, c: 22, f: 50 },
 ]
+
+/** Keyword → cookedFactor lookup for matching scanned/parsed items to known factors. */
+const COOKED_KEYWORDS: [RegExp, number][] = [
+  [/chicken/i, 0.75],
+  [/turkey/i, 0.75],
+  [/beef|mince/i, 0.7],
+  [/salmon/i, 0.75],
+  [/\brice\b/i, 2.7],
+  [/pasta|spaghetti|penne|fusilli/i, 2.3],
+  [/\boats\b|oatmeal|porridge/i, 3.0],
+  [/\bpotato\b/i, 0.9],
+  [/sweet\s*potato/i, 0.9],
+]
+
+/** Match a food name against known cooked factors. Returns the factor or undefined. */
+export function matchCookedFactor(name: string): number | undefined {
+  for (const [re, factor] of COOKED_KEYWORDS) {
+    if (re.test(name)) return factor
+  }
+  return undefined
+}
