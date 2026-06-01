@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const result = await model.generateContent([
       { inlineData: { mimeType, data: b64 } },
-      { text: `Extract nutrition facts from this label. Return ONLY JSON: {"name":"…","basis":"100g" or "serving","kcal":N,"p":N,"c":N,"f":N}. Convert kJ÷4.184=kcal. Handle EU labels (comma decimals, German/French/Italian terms). If unreadable: {"error":"Could not parse label"}.` },
+      { text: `Extract nutrition facts from this label. Return ONLY JSON: {"name":"…","basis":"100g" or "serving","kcal":N,"p":N,"c":N,"f":N,"fb":N}. "fb" is fiber in grams (number, 0 if not on label). Convert kJ÷4.184=kcal. Handle EU labels (comma decimals, German/French/Italian terms). If unreadable: {"error":"Could not parse label"}.` },
     ])
 
     let text = result.response.text().trim()

@@ -6,6 +6,7 @@ export interface OFFResult {
   p: number
   c: number
   f: number
+  fb: number
   basis: '100g'
 }
 
@@ -26,6 +27,7 @@ export async function lookupBarcode(barcode: string): Promise<OFFResult | null> 
     p: round1(num(n['proteins_100g'])),
     c: round1(num(n['carbohydrates_100g'])),
     f: round1(num(n['fat_100g'])),
+    fb: round1(num(n['fiber_100g'])),
     basis: '100g',
   }
 }
@@ -48,6 +50,7 @@ export async function searchByName(query: string): Promise<OFFResult[]> {
       p: round1(num(n['proteins_100g'])),
       c: round1(num(n['carbohydrates_100g'])),
       f: round1(num(n['fat_100g'])),
+      fb: round1(num(n['fiber_100g'])),
       basis: '100g',
     })
   }

@@ -1,6 +1,6 @@
 import type { DayType, Targets } from '../lib/types'
 
-interface Totals { kcal: number; p: number; c: number; f: number }
+interface Totals { kcal: number; p: number; c: number; f: number; fb: number }
 
 const r = (n: number) => Math.round(n)
 
@@ -55,10 +55,11 @@ export default function Summary({
         <div className="h-full rounded-md transition-all duration-500"
           style={{ width: calPct + '%', background: totals.kcal > targets.kcal ? '#bb3b2e' : '#b88a2e' }} />
       </div>
-      <div className="grid grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-4 gap-3.5">
         <MacroBar label="Protein" val={totals.p} goal={targets.p} fill="#e98aa0" />
         <MacroBar label="Carbs" val={totals.c} goal={targets.c} fill="#e7c46a" />
         <MacroBar label="Fat" val={totals.f} goal={targets.f} fill="#7fb8b3" />
+        <MacroBar label="Fiber" val={totals.fb} goal={targets.fb} fill="#8B7355" />
       </div>
     </div>
   )

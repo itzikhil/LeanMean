@@ -48,7 +48,7 @@ export async function deleteLog(id: string): Promise<void> {
 export async function copyEntries(fromDate: string, toDate: string, meal?: MealId): Promise<void> {
   const { data, error } = await supabase
     .from('food_logs')
-    .select('meal,name,kcal,p,c,f,qty')
+    .select('meal,name,kcal,p,c,f,fb,qty')
     .eq('date', fromDate)
   if (error) throw error
   const rows = (data ?? []).filter((r) => !meal || r.meal === meal)
@@ -121,8 +121,8 @@ export async function getSettings(): Promise<Settings> {
   const { data } = await supabase.from('settings').select('*').maybeSingle()
   if (!data) return DEFAULT_SETTINGS
   return {
-    training: { kcal: data.training_kcal, p: data.training_p, c: data.training_c, f: data.training_f },
-    rest: { kcal: data.rest_kcal, p: data.rest_p, c: data.rest_c, f: data.rest_f },
+    training: { kcal: data.training_kcal, p: data.training_p, c: data.training_c, f: data.training_f, fb: data.training_fb ?? 30 },
+    rest: { kcal: data.rest_kcal, p: data.rest_p, c: data.rest_c, f: data.rest_f, fb: data.rest_fb ?? 30 },
   }
 }
 
@@ -132,8 +132,8 @@ export async function saveSettings(s: Settings): Promise<void> {
   await supabase.from('settings').upsert(
     {
       user_id: uid,
-      training_kcal: s.training.kcal, training_p: s.training.p, training_c: s.training.c, training_f: s.training.f,
-      rest_kcal: s.rest.kcal, rest_p: s.rest.p, rest_c: s.rest.c, rest_f: s.rest.f,
+      training_kcal: s.training.kcal, training_p: s.training.p, training_c: s.training.c, training_f: s.training.f, training_fb: s.training.fb,
+      rest_kcal: s.rest.kcal, rest_p: s.rest.p, rest_c: s.rest.c, rest_f: s.rest.f, rest_fb: s.rest.fb,
     },
     { onConflict: 'user_id' },
   )
@@ -170,7 +170,7 @@ export async function addLogs(entries: Omit<LogEntry, 'id' | 'created_at'>[]): P
 }
 
 // ---------- Time-of-day suggestions ----------
-export interface Suggestion { name: string; kcal: number; p: number; c: number; f: number; meal: MealId; count: number }
+export interface Suggestion { name: string; kcal: number; p: number; c: number; f: number; fb: number; meal: MealId; count: number }
 
 export async function getTimeSuggestions(window: 'morning' | 'midday' | 'evening'): Promise<Suggestion[]> {
   // Map window to hour ranges
@@ -182,12 +182,12 @@ export async function getTimeSuggestions(window: 'morning' | 'midday' | 'evening
   since.setDate(since.getDate() - 30)
   const { data, error } = await supabase
     .from('food_logs')
-    .select('name,kcal,p,c,f,meal,created_at')
+    .select('name,kcal,p,c,f,fb,meal,created_at')
     .gte('date', ymd(since))
   if (error) throw error
 
   // Bucket by hour of created_at
-  const freq = new Map<string, { name: string; kcal: number; p: number; c: number; f: number; meal: MealId; count: number }>()
+  const freq = new Map<string, { name: string; kcal: number; p: number; c: number; f: number; fb: number; meal: MealId; count: number }>()
   for (const r of data ?? []) {
     if (!r.created_at) continue
     const hour = new Date(r.created_at).getHours()
@@ -197,7 +197,7 @@ export async function getTimeSuggestions(window: 'morning' | 'midday' | 'evening
     if (existing) {
       existing.count++
     } else {
-      freq.set(key, { name: key, kcal: r.kcal, p: r.p, c: r.c, f: r.f, meal: r.meal as MealId, count: 1 })
+      freq.set(key, { name: key, kcal: r.kcal, p: r.p, c: r.c, f: r.f, fb: r.fb ?? 0, meal: r.meal as MealId, count: 1 })
     }
   }
 
@@ -208,24 +208,25 @@ export async function getTimeSuggestions(window: 'morning' | 'midday' | 'evening
 }
 
 // ---------- Weekly aggregate ----------
-export interface DayTotal { date: string; kcal: number; p: number; c: number; f: number }
+export interface DayTotal { date: string; kcal: number; p: number; c: number; f: number; fb: number }
 
 export async function getRange(days: number): Promise<DayTotal[]> {
   const since = new Date()
   since.setDate(since.getDate() - days + 1)
   const { data, error } = await supabase
     .from('food_logs')
-    .select('date,kcal,p,c,f,qty')
+    .select('date,kcal,p,c,f,fb,qty')
     .gte('date', ymd(since))
   if (error) throw error
   const map = new Map<string, DayTotal>()
   for (const r of data ?? []) {
     const key = r.date as string
-    const t = map.get(key) ?? { date: key, kcal: 0, p: 0, c: 0, f: 0 }
+    const t = map.get(key) ?? { date: key, kcal: 0, p: 0, c: 0, f: 0, fb: 0 }
     t.kcal += r.kcal * r.qty
     t.p += r.p * r.qty
     t.c += r.c * r.qty
     t.f += r.f * r.qty
+    t.fb += (r.fb ?? 0) * r.qty
     map.set(key, t)
   }
   return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))

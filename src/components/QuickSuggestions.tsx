@@ -18,7 +18,7 @@ const WINDOW_LABEL: Record<TimeWindow, string> = {
 }
 
 export default function QuickSuggestions({ onAdd }: {
-  onAdd: (entry: { meal: MealId; name: string; kcal: number; p: number; c: number; f: number; qty: number }) => void
+  onAdd: (entry: { meal: MealId; name: string; kcal: number; p: number; c: number; f: number; fb: number; qty: number }) => void
 }) {
   const [items, setItems] = useState<Suggestion[]>([])
   const [window] = useState(currentWindow)
@@ -34,7 +34,7 @@ export default function QuickSuggestions({ onAdd }: {
       <p className="text-[.68rem] font-bold uppercase tracking-widest text-terra/70 mb-1.5 ml-0.5">{WINDOW_LABEL[window]}</p>
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
         {items.map((s) => (
-          <button key={s.name} onClick={() => onAdd({ meal: s.meal, name: s.name, kcal: s.kcal, p: s.p, c: s.c, f: s.f, qty: 1 })}
+          <button key={s.name} onClick={() => onAdd({ meal: s.meal, name: s.name, kcal: s.kcal, p: s.p, c: s.c, f: s.f, fb: s.fb ?? 0, qty: 1 })}
             className="flex-shrink-0 bg-paper2 border border-line rounded-xl px-3 py-2 text-left active:bg-white min-w-[130px] max-w-[170px]">
             <span className="block font-semibold text-[.8rem] truncate">{s.name}</span>
             <span className="block text-[.62rem] text-inksoft">{s.kcal} kcal · {s.p}P</span>

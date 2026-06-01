@@ -14,6 +14,7 @@ create table if not exists public.food_logs (
   p numeric not null default 0,
   c numeric not null default 0,
   f numeric not null default 0,
+  fb numeric not null default 0,
   qty numeric not null default 1,
   created_at timestamptz not null default now()
 );
@@ -29,6 +30,7 @@ create table if not exists public.my_foods (
   p numeric not null default 0,
   c numeric not null default 0,
   f numeric not null default 0,
+  fb numeric not null default 0,
   use_count int not null default 1,
   last_used timestamptz not null default now()
 );
@@ -59,10 +61,12 @@ create table if not exists public.settings (
   training_p numeric not null default 185,
   training_c numeric not null default 205,
   training_f numeric not null default 60,
+  training_fb numeric not null default 30,
   rest_kcal numeric not null default 1950,
   rest_p numeric not null default 185,
   rest_c numeric not null default 165,
-  rest_f numeric not null default 58
+  rest_f numeric not null default 58,
+  rest_fb numeric not null default 30
 );
 
 -- ---------- saved_meals ----------

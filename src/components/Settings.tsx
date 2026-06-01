@@ -12,10 +12,10 @@ export default function Settings({ settings, onSave }: { settings: S; onSave: (s
       {(['training', 'rest'] as const).map((day) => (
         <div key={day} className="bg-paper2 border border-line rounded-2xl p-4">
           <div className="font-display font-semibold text-[1.05rem] mb-3 capitalize">{day} day</div>
-          <div className="grid grid-cols-4 gap-2">
-            {(['kcal', 'p', 'c', 'f'] as const).map((k) => (
+          <div className="grid grid-cols-5 gap-2">
+            {(['kcal', 'p', 'c', 'f', 'fb'] as const).map((k) => (
               <div key={k}>
-                <label className="block text-[.7rem] font-bold uppercase text-inksoft mb-1">{k === 'p' ? 'Prot' : k === 'c' ? 'Carb' : k === 'f' ? 'Fat' : 'Kcal'}</label>
+                <label className="block text-[.7rem] font-bold uppercase text-inksoft mb-1">{k === 'p' ? 'Prot' : k === 'c' ? 'Carb' : k === 'f' ? 'Fat' : k === 'fb' ? 'Fiber' : 'Kcal'}</label>
                 <input type="number" inputMode="numeric" value={s[day][k]} onChange={(e) => upd(day, k, e.target.value)}
                   className="w-full text-base px-2.5 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
               </div>

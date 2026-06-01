@@ -86,7 +86,7 @@ export default function LogList({
                   <button
                     onClick={() => {
                       if (!saveName.trim()) return
-                      onSaveMeal(saveName.trim(), items.map((e) => ({ name: e.name, kcal: e.kcal, p: e.p, c: e.c, f: e.f, qty: e.qty })))
+                      onSaveMeal(saveName.trim(), items.map((e) => ({ name: e.name, kcal: e.kcal, p: e.p, c: e.c, f: e.f, fb: e.fb ?? 0, qty: e.qty })))
                       setSavingMeal(null)
                       setSaveName('')
                     }}
@@ -107,7 +107,8 @@ export default function LogList({
                     <span className="mr-2.5">{r(e.kcal * e.qty)} kcal</span>
                     <span className="mr-2.5 text-macp">{r(e.p * e.qty)}P</span>
                     <span className="mr-2.5 text-macc">{r(e.c * e.qty)}C</span>
-                    <span className="text-macf">{r(e.f * e.qty)}F</span>
+                    <span className="mr-2.5 text-macf">{r(e.f * e.qty)}F</span>
+                    <span className="text-[#8B7355]">{r((e.fb ?? 0) * e.qty)}FB</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">

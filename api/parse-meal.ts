@@ -22,7 +22,7 @@ ${knownFoods || '(none)'}
 
 INPUT: "${text}"
 
-Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":bool}
+Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":bool}
 Use estimated:false for known-food matches, true for estimates. If unparseable return [].`
 
     const result = await model.generateContent(prompt)

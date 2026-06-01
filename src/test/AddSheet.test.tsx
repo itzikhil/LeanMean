@@ -16,6 +16,8 @@ const baseProps = {
   savedMeals: [],
   onDeleteSavedMeal: vi.fn(),
   onAddSavedMeal: vi.fn(),
+  totals: { kcal: 0, p: 0, fb: 0 },
+  targets: { kcal: 2100, p: 185, c: 205, f: 60, fb: 30 },
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -50,6 +52,7 @@ describe('AddSheet – Staples tab', () => {
       p: 6.3,
       c: 0.4,
       f: 4.8,
+      fb: 0,
       qty: 2,
     })
   })
@@ -71,7 +74,7 @@ describe('AddSheet – Staples tab', () => {
 
     await user.click(screen.getByRole('button', { name: 'Add to log' }))
 
-    // 150g of chicken breast (raw): 120 kcal/100g → 180 kcal, 23g P → 34.5g, 0g C → 0g, 2.6g F → 3.9g
+    // 150g of chicken breast (raw): 120 kcal/100g → 180 kcal, 23g P → 34.5g, 0g C → 0g, 2.6g F → 3.9g, 0g FB
     expect(baseProps.onAdd).toHaveBeenCalledWith({
       meal: 'snack',
       name: 'Chicken breast (raw) (150g)',
@@ -79,6 +82,7 @@ describe('AddSheet – Staples tab', () => {
       p: 34.5,
       c: 0,
       f: 3.9,
+      fb: 0,
       qty: 1,
     })
   })

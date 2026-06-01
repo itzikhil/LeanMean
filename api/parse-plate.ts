@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 KNOWN FOODS:
 ${knownFoods || '(none)'}
 
-Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":true}
+Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":true}
 If no food visible return [].`
 
     const result = await model.generateContent([

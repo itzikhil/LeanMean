@@ -3,17 +3,31 @@ import { MEALS, MENU } from '../lib/menu'
 import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS, matchCookedFactor } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
 import { resizeImage } from '../lib/resizeImage'
-import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem } from '../lib/types'
+import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Targets } from '../lib/types'
 import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
 
 type NewEntry = Omit<LogEntry, 'id' | 'created_at' | 'date' | 'user_id'>
+
+/** Food quality badges: "protein" when ≥10g P per 100 kcal, "fiber" when ≥3g FB per 100 kcal. */
+function qualityBadges(kcal: number, p: number, fb: number, lowP: boolean, lowFb: boolean) {
+  if (kcal <= 0) return null
+  const highP = (p / kcal) * 100 >= 10
+  const highFb = (fb / kcal) * 100 >= 3
+  if (!highP && !highFb) return null
+  return (
+    <span className="inline-flex gap-1 ml-1">
+      {highP && <span className={`text-[.58rem] font-bold px-1 py-0.5 rounded ${lowP ? 'bg-macp/20 text-macp' : 'bg-paper2 text-inksoft/50'}`}>protein</span>}
+      {highFb && <span className={`text-[.58rem] font-bold px-1 py-0.5 rounded ${lowFb ? 'bg-[#8B7355]/20 text-[#8B7355]' : 'bg-paper2 text-inksoft/50'}`}>fiber</span>}
+    </span>
+  )
+}
 type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find' | 'ai'
-interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number }; cookedFactor?: number }
-interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; qty: number; meal: MealId; estimated?: boolean; cookedFactor?: number; weighMode?: 'raw' | 'cooked' }
+interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number; fb: number }; cookedFactor?: number }
+interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; fb: number; qty: number; meal: MealId; estimated?: boolean; cookedFactor?: number; weighMode?: 'raw' | 'cooked' }
 
 export default function AddSheet({
-  open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal,
+  open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal, totals, targets,
 }: {
   open: boolean
   onClose: () => void
@@ -25,10 +39,14 @@ export default function AddSheet({
   savedMeals: SavedMeal[]
   onDeleteSavedMeal: (id: string) => void
   onAddSavedMeal: (meal: MealId, items: SavedMealItem[]) => void
+  totals: { kcal: number; p: number; fb: number }
+  targets: Targets
 }) {
+  const lowP = totals.p < targets.p * 0.8
+  const lowFb = totals.fb < targets.fb * 0.8
   const [tab, setTab] = useState<Tab>('menu')
   const [customMeal, setCustomMeal] = useState<MealId>('breakfast')
-  const [cf, setCf] = useState({ name: '', kcal: '', p: '', c: '', f: '' })
+  const [cf, setCf] = useState({ name: '', kcal: '', p: '', c: '', f: '', fb: '' })
   const [pending, setPending] = useState<Pending | null>(null)
   const [grams, setGrams] = useState('100')
   const [servings, setServings] = useState('1')
@@ -67,21 +85,21 @@ export default function AddSheet({
 
   function addMenu(code: string) {
     const m = MENU.find((x) => x.code === code)!
-    onAdd({ meal: m.meal, name: m.name, kcal: m.kcal, p: m.p, c: m.c, f: m.f, qty: 1 })
+    onAdd({ meal: m.meal, name: m.name, kcal: m.kcal, p: m.p, c: m.c, f: m.f, fb: m.fb, qty: 1 })
   }
 
   function chooseMyFood(f: MyFood) {
     if (f.basis === '100g') {
-      setPending({ name: f.name, meal: 'snack', basis: '100g', per100: { kcal: f.kcal, p: f.p, c: f.c, f: f.f } })
+      setPending({ name: f.name, meal: 'snack', basis: '100g', per100: { kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 } })
     } else {
-      onAdd({ meal: 'snack', name: f.name, kcal: f.kcal, p: f.p, c: f.c, f: f.f, qty: 1 })
-      onSaveMyFood({ name: f.name, basis: 'serving', kcal: f.kcal, p: f.p, c: f.c, f: f.f })
+      onAdd({ meal: 'snack', name: f.name, kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0, qty: 1 })
+      onSaveMyFood({ name: f.name, basis: 'serving', kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 })
       close()
     }
   }
 
   function chooseStaple(s: Staple) {
-    setPending({ name: s.name, meal: 'snack', basis: s.basis, per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f }, cookedFactor: s.cookedFactor })
+    setPending({ name: s.name, meal: 'snack', basis: s.basis, per100: { kcal: s.kcal, p: s.p, c: s.c, f: s.f, fb: s.fb }, cookedFactor: s.cookedFactor })
   }
 
   async function onBarcode(code: string) {
@@ -89,7 +107,7 @@ export default function AddSheet({
     try {
       const r = await lookupBarcode(code)
       if (!r) { setScanMsg(`No match for ${code}. Add it as a custom food.`); return }
-      setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f }, cookedFactor: matchCookedFactor(r.name) })
+      setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f, fb: r.fb }, cookedFactor: matchCookedFactor(r.name) })
     } catch {
       setScanMsg('Lookup failed (offline?). Try custom entry.')
     }
@@ -126,7 +144,7 @@ export default function AddSheet({
         name: scanName,
         meal: 'snack',
         basis,
-        per100: { kcal: Math.round(data.kcal || 0), p: +(data.p || 0), c: +(data.c || 0), f: +(data.f || 0) },
+        per100: { kcal: Math.round(data.kcal || 0), p: +(data.p || 0), c: +(data.c || 0), f: +(data.f || 0), fb: +(data.fb || 0) },
         cookedFactor: matchCookedFactor(scanName),
       })
     } catch (err) {
@@ -159,7 +177,7 @@ export default function AddSheet({
     try {
       if (pending.basis === 'serving') {
         const qty = Math.max(0.5, parseFloat(servings) || 1)
-        await onAdd({ meal: pending.meal, name: pending.name, kcal: pending.per100.kcal, p: pending.per100.p, c: pending.per100.c, f: pending.per100.f, qty })
+        await onAdd({ meal: pending.meal, name: pending.name, kcal: pending.per100.kcal, p: pending.per100.p, c: pending.per100.c, f: pending.per100.f, fb: pending.per100.fb, qty })
         onSaveMyFood({ name: pending.name, basis: 'serving', ...pending.per100 })
         close()
         return
@@ -175,6 +193,7 @@ export default function AddSheet({
         p: +(pending.per100.p * k).toFixed(1),
         c: +(pending.per100.c * k).toFixed(1),
         f: +(pending.per100.f * k).toFixed(1),
+        fb: +(pending.per100.fb * k).toFixed(1),
         qty: 1,
       })
       onSaveMyFood({ name: pending.name, basis: '100g', ...pending.per100 })
@@ -188,13 +207,13 @@ export default function AddSheet({
   }
 
   function saveCustom() {
-    const p = +cf.p || 0, c = +cf.c || 0, f = +cf.f || 0
+    const p = +cf.p || 0, c = +cf.c || 0, f = +cf.f || 0, fb = +cf.fb || 0
     let kcal = +cf.kcal
     if (!kcal) kcal = p * 4 + c * 4 + f * 9
     const name = cf.name.trim() || 'Food'
-    onAdd({ meal: customMeal, name, kcal, p, c, f, qty: 1 })
-    onSaveMyFood({ name, basis: 'serving', kcal, p, c, f })
-    setCf({ name: '', kcal: '', p: '', c: '', f: '' })
+    onAdd({ meal: customMeal, name, kcal, p, c, f, fb, qty: 1 })
+    onSaveMyFood({ name, basis: 'serving', kcal, p, c, f, fb })
+    setCf({ name: '', kcal: '', p: '', c: '', f: '', fb: '' })
     close()
   }
 
@@ -224,8 +243,8 @@ export default function AddSheet({
   }
 
   function knownFoodsContext() {
-    const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F (meal: ${m.meal})`).join('\n')
-    const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F per ${s.basis}`).join('\n')
+    const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F/${m.fb}FB (meal: ${m.meal})`).join('\n')
+    const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F/${s.fb}FB per ${s.basis}`).join('\n')
     return `MENU ITEMS:\n${menuStr}\n\nSTAPLES:\n${stapleStr}`
   }
 
@@ -300,12 +319,13 @@ export default function AddSheet({
         p: +Number(item.p).toFixed(1),
         c: +Number(item.c).toFixed(1),
         f: +Number(item.f).toFixed(1),
+        fb: +Number(item.fb ?? 0).toFixed(1),
         qty: item.qty || 1,
       }))
       await onAddMultiple(entries)
       // Save each AI-parsed item to My Foods for future one-tap re-logging
       for (const item of entries) {
-        onSaveMyFood({ name: item.name, basis: 'serving', kcal: item.kcal, p: item.p, c: item.c, f: item.f })
+        onSaveMyFood({ name: item.name, basis: 'serving', kcal: item.kcal, p: item.p, c: item.c, f: item.f, fb: item.fb ?? 0 })
       }
       close()
     } catch {
@@ -341,9 +361,9 @@ export default function AddSheet({
               <p className="text-[.8rem] text-inksoft mb-3">
                 {pending.basis === '100g'
                   ? weighMode === 'cooked' && pending.cookedFactor
-                    ? `Per 100g cooked: ${Math.round(pending.per100.kcal / pending.cookedFactor)} kcal · ${(pending.per100.p / pending.cookedFactor).toFixed(1)}P / ${(pending.per100.c / pending.cookedFactor).toFixed(1)}C / ${(pending.per100.f / pending.cookedFactor).toFixed(1)}F`
-                    : `Per 100g raw: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F`
-                  : `Per serving: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F`}
+                    ? `Per 100g cooked: ${Math.round(pending.per100.kcal / pending.cookedFactor)} kcal · ${(pending.per100.p / pending.cookedFactor).toFixed(1)}P / ${(pending.per100.c / pending.cookedFactor).toFixed(1)}C / ${(pending.per100.f / pending.cookedFactor).toFixed(1)}F / ${(pending.per100.fb / pending.cookedFactor).toFixed(1)}FB`
+                    : `Per 100g raw: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F / ${pending.per100.fb}FB`
+                  : `Per serving: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F / ${pending.per100.fb}FB`}
               </p>
               {pending.basis === '100g' && pending.cookedFactor && (
                 <div className="flex gap-1 mb-3">
@@ -407,7 +427,7 @@ export default function AddSheet({
                       <span className="font-display font-semibold text-[.72rem] text-white px-1.5 py-0.5 rounded-md" style={{ background: m.color }}>{l.code}</span>
                       <span className="flex-1 min-w-0">
                         <span className="block font-semibold text-[.92rem]">{l.name}</span>
-                        <span className="block text-[.68rem] text-inksoft">{l.kcal} kcal · {l.p}P / {l.c}C / {l.f}F</span>
+                        <span className="block text-[.68rem] text-inksoft">{l.kcal} kcal · {l.p}P / {l.c}C / {l.f}F / {l.fb}FB{qualityBadges(l.kcal, l.p, l.fb, lowP, lowFb)}</span>
                       </span>
                       <span className="text-forest text-xl font-bold">＋</span>
                     </button>
@@ -431,8 +451,9 @@ export default function AddSheet({
                         <span className="flex-1 min-w-0">
                           <span className="block font-semibold text-[.92rem]">{s.name}</span>
                           <span className="block text-[.68rem] text-inksoft">
-                            {s.kcal} kcal {'\u00b7'} {s.p}P / {s.c}C / {s.f}F{s.basis === '100g' ? ' / 100g' : ''}
+                            {s.kcal} kcal {'\u00b7'} {s.p}P / {s.c}C / {s.f}F / {s.fb}FB{s.basis === '100g' ? ' / 100g' : ''}
                             {s.hint && <>{' \u00b7 '}{s.hint}</>}
+                            {qualityBadges(s.kcal, s.p, s.fb, lowP, lowFb)}
                           </span>
                         </span>
                         <span className="text-forest text-xl font-bold">{'\uff0b'}</span>
@@ -448,7 +469,7 @@ export default function AddSheet({
                 <div>
                   <p className="font-display font-semibold text-lg">{pendingSaved.name}</p>
                   <p className="text-[.8rem] text-inksoft mb-1">
-                    {pendingSaved.items.length} items · {Math.round(pendingSaved.items.reduce((s, i) => s + i.kcal * i.qty, 0))} kcal · {Math.round(pendingSaved.items.reduce((s, i) => s + i.p * i.qty, 0))}P / {Math.round(pendingSaved.items.reduce((s, i) => s + i.c * i.qty, 0))}C / {Math.round(pendingSaved.items.reduce((s, i) => s + i.f * i.qty, 0))}F
+                    {pendingSaved.items.length} items · {Math.round(pendingSaved.items.reduce((s, i) => s + i.kcal * i.qty, 0))} kcal · {Math.round(pendingSaved.items.reduce((s, i) => s + i.p * i.qty, 0))}P / {Math.round(pendingSaved.items.reduce((s, i) => s + i.c * i.qty, 0))}C / {Math.round(pendingSaved.items.reduce((s, i) => s + i.f * i.qty, 0))}F / {Math.round(pendingSaved.items.reduce((s, i) => s + (i.fb ?? 0) * i.qty, 0))}FB
                   </p>
                   <div className="text-[.72rem] text-inksoft/70 mb-3">
                     {pendingSaved.items.map((it, i) => <span key={i}>{i > 0 && ', '}{it.name}{it.qty > 1 ? ` ×${it.qty}` : ''}</span>)}
@@ -469,13 +490,13 @@ export default function AddSheet({
                     <div className="mb-4">
                       <p className="text-[.7rem] font-bold uppercase tracking-widest text-forest mb-1.5 ml-0.5">Saved meals</p>
                       {savedMeals.map((sm) => {
-                        const tot = sm.items.reduce((s, i) => ({ kcal: s.kcal + i.kcal * i.qty, p: s.p + i.p * i.qty, c: s.c + i.c * i.qty, f: s.f + i.f * i.qty }), { kcal: 0, p: 0, c: 0, f: 0 })
+                        const tot = sm.items.reduce((s, i) => ({ kcal: s.kcal + i.kcal * i.qty, p: s.p + i.p * i.qty, c: s.c + i.c * i.qty, f: s.f + i.f * i.qty, fb: s.fb + (i.fb ?? 0) * i.qty }), { kcal: 0, p: 0, c: 0, f: 0, fb: 0 })
                         return (
                           <div key={sm.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
                             <button onClick={() => { setPendingSaved(sm); setSavedMealSlot('breakfast') }} className="flex-1 min-w-0 text-left">
                               <span className="block font-semibold text-[.92rem]">{sm.name}</span>
                               <span className="block text-[.68rem] text-inksoft">
-                                {sm.items.length} items · {Math.round(tot.kcal)} kcal · {Math.round(tot.p)}P / {Math.round(tot.c)}C / {Math.round(tot.f)}F
+                                {sm.items.length} items · {Math.round(tot.kcal)} kcal · {Math.round(tot.p)}P / {Math.round(tot.c)}C / {Math.round(tot.f)}F / {Math.round(tot.fb)}FB
                               </span>
                             </button>
                             <button onClick={() => onDeleteSavedMeal(sm.id)} className="text-macp/40 active:text-macp px-1">✕</button>
@@ -492,7 +513,8 @@ export default function AddSheet({
                       <button onClick={() => chooseMyFood(f)} className="flex-1 min-w-0 text-left">
                         <span className="block font-semibold text-[.92rem]">{f.name}</span>
                         <span className="block text-[.68rem] text-inksoft">
-                          {f.kcal} kcal · {f.p}P / {f.c}C / {f.f}F {f.basis === '100g' ? '/ 100g' : ''} · used {f.use_count}×
+                          {f.kcal} kcal · {f.p}P / {f.c}C / {f.f}F / {f.fb ?? 0}FB {f.basis === '100g' ? '/ 100g' : ''} · used {f.use_count}×
+                          {qualityBadges(f.kcal, f.p, f.fb ?? 0, lowP, lowFb)}
                         </span>
                       </button>
                       <button onClick={() => onDeleteMyFood(f.id)} className="text-macp/40 active:text-macp px-1">✕</button>
@@ -508,10 +530,10 @@ export default function AddSheet({
               <label className="block text-[.74rem] font-bold uppercase text-inksoft mt-3 mb-1.5">Food name</label>
               <input value={cf.name} onChange={(e) => setCf({ ...cf, name: e.target.value })} placeholder="e.g. Cottage cheese"
                 className="w-full text-base px-3.5 py-3 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
-              <div className="grid grid-cols-4 gap-2 mt-3">
-                {(['kcal', 'p', 'c', 'f'] as const).map((k) => (
+              <div className="grid grid-cols-5 gap-2 mt-3">
+                {(['kcal', 'p', 'c', 'f', 'fb'] as const).map((k) => (
                   <div key={k}>
-                    <label className="block text-[.7rem] font-bold uppercase text-inksoft mb-1">{k === 'p' ? 'Prot' : k === 'c' ? 'Carb' : k === 'f' ? 'Fat' : 'Kcal'}</label>
+                    <label className="block text-[.7rem] font-bold uppercase text-inksoft mb-1">{k === 'p' ? 'Prot' : k === 'c' ? 'Carb' : k === 'f' ? 'Fat' : k === 'fb' ? 'Fiber' : 'Kcal'}</label>
                     <input type="number" inputMode="numeric" value={cf[k]} onChange={(e) => setCf({ ...cf, [k]: e.target.value })} placeholder="0"
                       className="w-full text-base px-2.5 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra" />
                   </div>
@@ -546,11 +568,11 @@ export default function AddSheet({
                 {searchResults.length > 0 && (
                   <div className="mt-2 space-y-1.5">
                     {searchResults.map((r, i) => (
-                      <button key={i} onClick={() => setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f }, cookedFactor: matchCookedFactor(r.name) })}
+                      <button key={i} onClick={() => setPending({ name: r.name, meal: 'snack', basis: '100g', per100: { kcal: r.kcal, p: r.p, c: r.c, f: r.f, fb: r.fb }, cookedFactor: matchCookedFactor(r.name) })}
                         className="w-full flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 text-left active:bg-white">
                         <span className="flex-1 min-w-0">
                           <span className="block font-semibold text-[.92rem] truncate">{r.name}</span>
-                          <span className="block text-[.68rem] text-inksoft">{r.kcal} kcal · {r.p}P / {r.c}C / {r.f}F / 100g</span>
+                          <span className="block text-[.68rem] text-inksoft">{r.kcal} kcal · {r.p}P / {r.c}C / {r.f}F / {r.fb ?? 0}FB / 100g</span>
                         </span>
                         <span className="text-forest text-xl font-bold">＋</span>
                       </button>
@@ -581,6 +603,7 @@ export default function AddSheet({
                     const dispP = isCooked ? +( +item.p / item.cookedFactor!).toFixed(1) : +item.p
                     const dispC = isCooked ? +( +item.c / item.cookedFactor!).toFixed(1) : +item.c
                     const dispF = isCooked ? +( +item.f / item.cookedFactor!).toFixed(1) : +item.f
+                    const dispFb = isCooked ? +( +(item.fb ?? 0) / item.cookedFactor!).toFixed(1) : +(item.fb ?? 0)
                     return (
                     <div key={idx} className="bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
                       <div className="flex items-start gap-2">
@@ -607,6 +630,11 @@ export default function AddSheet({
                               <input type="number" value={dispF} onChange={(e) => {
                                 const v = +e.target.value; updateAiItem(idx, 'f', isCooked ? +(v * item.cookedFactor!).toFixed(1) : v)
                               }} className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />F
+                            </span>
+                            <span className="text-[.68rem] text-inksoft">
+                              <input type="number" value={dispFb} onChange={(e) => {
+                                const v = +e.target.value; updateAiItem(idx, 'fb', isCooked ? +(v * item.cookedFactor!).toFixed(1) : v)
+                              }} className="w-8 bg-transparent border-b border-line text-center focus:outline-none focus:border-terra" />FB
                             </span>
                           </div>
                           {item.cookedFactor && (
@@ -635,7 +663,7 @@ export default function AddSheet({
                     )
                   })}
                   <div className="bg-paper2 border border-line rounded-[11px] px-3 py-2 mt-2 text-center text-[.78rem] font-semibold text-inksoft">
-                    Total: {Math.round(aiItems.reduce((s, i) => s + (+i.kcal), 0))} kcal · {Math.round(aiItems.reduce((s, i) => s + (+i.p), 0))}P / {Math.round(aiItems.reduce((s, i) => s + (+i.c), 0))}C / {Math.round(aiItems.reduce((s, i) => s + (+i.f), 0))}F
+                    Total: {Math.round(aiItems.reduce((s, i) => s + (+i.kcal), 0))} kcal · {Math.round(aiItems.reduce((s, i) => s + (+i.p), 0))}P / {Math.round(aiItems.reduce((s, i) => s + (+i.c), 0))}C / {Math.round(aiItems.reduce((s, i) => s + (+i.f), 0))}F / {Math.round(aiItems.reduce((s, i) => s + (+(i.fb ?? 0)), 0))}FB
                   </div>
                   <button onClick={confirmAiItems} disabled={adding}
                     className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-60">

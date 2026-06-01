@@ -72,8 +72,8 @@ export default function App() {
   }, [session, view])
 
   const totals = entries.reduce(
-    (a, e) => ({ kcal: a.kcal + e.kcal * e.qty, p: a.p + e.p * e.qty, c: a.c + e.c * e.qty, f: a.f + e.f * e.qty }),
-    { kcal: 0, p: 0, c: 0, f: 0 },
+    (a, e) => ({ kcal: a.kcal + e.kcal * e.qty, p: a.p + e.p * e.qty, c: a.c + e.c * e.qty, f: a.f + e.f * e.qty, fb: a.fb + (e.fb ?? 0) * e.qty }),
+    { kcal: 0, p: 0, c: 0, f: 0, fb: 0 },
   )
   const targets = settings[dayType]
 
@@ -143,6 +143,7 @@ export default function App() {
       p: item.p,
       c: item.c,
       f: item.f,
+      fb: item.fb ?? 0,
       qty: item.qty,
       date: dstr,
     }))
@@ -218,7 +219,7 @@ export default function App() {
         ))}
       </nav>
 
-      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} />
+      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} totals={totals} targets={targets} />
     </div>
   )
 }

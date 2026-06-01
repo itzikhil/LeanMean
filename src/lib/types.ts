@@ -10,6 +10,7 @@ export interface MenuItem {
   p: number
   c: number
   f: number
+  fb: number
 }
 
 export interface LogEntry {
@@ -22,6 +23,7 @@ export interface LogEntry {
   p: number
   c: number
   f: number
+  fb: number
   qty: number
   created_at?: string
 }
@@ -35,6 +37,7 @@ export interface MyFood {
   p: number
   c: number
   f: number
+  fb: number
   use_count: number
   last_used: string
 }
@@ -46,7 +49,7 @@ export interface WeightEntry {
   weight_kg: number
 }
 
-export interface Targets { kcal: number; p: number; c: number; f: number }
+export interface Targets { kcal: number; p: number; c: number; f: number; fb: number }
 
 export interface Settings {
   user_id?: string
@@ -60,6 +63,7 @@ export interface SavedMealItem {
   p: number
   c: number
   f: number
+  fb: number
   qty: number
 }
 

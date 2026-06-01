@@ -9,7 +9,7 @@ interface Message {
 }
 
 interface Props {
-  totals: { kcal: number; p: number; c: number; f: number }
+  totals: { kcal: number; p: number; c: number; f: number; fb: number }
   targets: Targets
   dayType: 'training' | 'rest'
   weights: WeightEntry[]
@@ -39,6 +39,7 @@ export default function Coach({ totals, targets, dayType, weights }: Props) {
       p: targets.p - totals.p,
       c: targets.c - totals.c,
       f: targets.f - totals.f,
+      fb: targets.fb - totals.fb,
     }
 
     const now = new Date()
@@ -67,19 +68,19 @@ export default function Coach({ totals, targets, dayType, weights }: Props) {
     }
 
     const menuStr = MENU.filter((m) => m.meal !== 'extras')
-      .map((m) => `${m.code} ${m.name} (${m.meal}): ${m.kcal} kcal, ${m.p}p ${m.c}c ${m.f}f`)
+      .map((m) => `${m.code} ${m.name} (${m.meal}): ${m.kcal} kcal, ${m.p}p ${m.c}c ${m.f}f ${m.fb}fb`)
       .join('\n')
 
     const stapleStr = STAPLES
-      .map((s) => `${s.name}: ${s.kcal} kcal, ${s.p}p ${s.c}c ${s.f}f per ${s.basis}`)
+      .map((s) => `${s.name}: ${s.kcal} kcal, ${s.p}p ${s.c}c ${s.f}f ${s.fb}fb per ${s.basis}`)
       .join('\n')
 
     return `TIME: ${timeStr} (${timeLabel})
 
 TODAY (${dayType} day):
-Eaten so far: ${Math.round(totals.kcal)} kcal (${pctKcal}% of target), ${Math.round(totals.p)}g protein (${pctP}%), ${Math.round(totals.c)}g carbs, ${Math.round(totals.f)}g fat
-Full-day targets: ${targets.kcal} kcal, ${targets.p}g protein, ${targets.c}g carbs, ${targets.f}g fat
-Still available: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.p)}g protein, ${Math.round(remaining.c)}g carbs, ${Math.round(remaining.f)}g fat
+Eaten so far: ${Math.round(totals.kcal)} kcal (${pctKcal}% of target), ${Math.round(totals.p)}g protein (${pctP}%), ${Math.round(totals.c)}g carbs, ${Math.round(totals.f)}g fat, ${Math.round(totals.fb)}g fiber
+Full-day targets: ${targets.kcal} kcal, ${targets.p}g protein, ${targets.c}g carbs, ${targets.f}g fat, ${targets.fb}g fiber
+Still available: ${Math.round(remaining.kcal)} kcal, ${Math.round(remaining.p)}g protein, ${Math.round(remaining.c)}g carbs, ${Math.round(remaining.f)}g fat, ${Math.round(remaining.fb)}g fiber
 
 WEIGHT: ${weightLine}
 
