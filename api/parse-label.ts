@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { genAI, geminiWithRetry, friendlyError } from './_gemini'
 
 /** Strip markdown fences and any text before the first { or after the last }. */
 function extractJson(raw: string): string {
@@ -35,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await model.generateContent(content)
+      const result = await geminiWithRetry(model, content, 'parse-label')
       const raw = result.response.text()
       try {
         const parsed = JSON.parse(extractJson(raw)) as Record<string, unknown>
@@ -48,7 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(422).json({ error: 'Could not read label. Try again or switch to manual entry.' })
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error'
-    return res.status(500).json({ error: message })
+    return res.status(500).json({ error: friendlyError(e, 'parse-label') })
   }
 }

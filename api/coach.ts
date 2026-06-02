@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { genAI, geminiWithRetry, friendlyError } from './_gemini'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
@@ -31,11 +29,10 @@ RESPONSE STYLE:
 ${context ?? ''}`,
     })
 
-    const result = await model.generateContent(message)
+    const result = await geminiWithRetry(model, message, 'coach')
     const reply = result.response.text().trim()
     return res.status(200).json({ reply })
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    return res.status(500).json({ error: msg })
+    return res.status(500).json({ error: friendlyError(e, 'coach') })
   }
 }

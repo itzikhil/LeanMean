@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+import { genAI, geminiWithRetry, friendlyError } from './_gemini'
 
 /** Strip markdown fences and any text before the first [/{ or after the last ]/}. */
 function extractJson(raw: string): string {
@@ -36,7 +34,7 @@ Use estimated:false for known-food matches, true for estimates. If unparseable r
     })
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await model.generateContent(prompt)
+      const result = await geminiWithRetry(model, prompt, 'parse-meal')
       const raw = result.response.text()
       try {
         const parsed = JSON.parse(extractJson(raw))
@@ -49,7 +47,6 @@ Use estimated:false for known-food matches, true for estimates. If unparseable r
 
     return res.status(422).json({ error: 'Could not parse response. Try rephrasing, or switch to manual entry.' })
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error'
-    return res.status(500).json({ error: message })
+    return res.status(500).json({ error: friendlyError(e, 'parse-meal') })
   }
 }
