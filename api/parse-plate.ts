@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { genAI, geminiWithRetry, friendlyError } from './_gemini'
+import { genAI, geminiWithRetry, friendlyError } from './_gemini.js'
 
 /** Strip markdown fences and any text before the first [ or after the last ]. */
 function extractJson(raw: string): string {
@@ -12,16 +12,17 @@ function extractJson(raw: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  try {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
 
-  const { image, knownFoods } = req.body as { image?: string; knownFoods?: string }
-  if (!image) return res.status(400).json({ error: 'Missing image (base64)' })
+    const { image, knownFoods } = req.body as { image?: string; knownFoods?: string }
+    if (!image) return res.status(400).json({ error: 'Missing image (base64)' })
 
-  const match = image.match(/^data:(image\/\w+);base64,(.+)$/)
-  const mimeType = match?.[1] ?? 'image/jpeg'
-  const b64 = match ? match[2] : image
+    const match = image.match(/^data:(image\/\w+);base64,(.+)$/)
+    const mimeType = match?.[1] ?? 'image/jpeg'
+    const b64 = match ? match[2] : image
 
-  const prompt = `Identify foods on this plate with estimated portions and macros. Match known foods when possible.
+    const prompt = `Identify foods on this plate with estimated portions and macros. Match known foods when possible.
 
 KNOWN FOODS:
 ${knownFoods || '(none)'}
@@ -29,12 +30,11 @@ ${knownFoods || '(none)'}
 Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":true}
 If no food visible return [].`
 
-  const content = [
-    { inlineData: { mimeType, data: b64 } },
-    { text: prompt },
-  ]
+    const content = [
+      { inlineData: { mimeType, data: b64 } },
+      { text: prompt },
+    ]
 
-  try {
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: { maxOutputTokens: 1024, responseMimeType: 'application/json' },
