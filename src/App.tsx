@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import {
@@ -17,6 +17,8 @@ import Settings from './components/Settings'
 import ProteinCoach from './components/ProteinCoach'
 import QuickSuggestions from './components/QuickSuggestions'
 import Coach from './components/Coach'
+import ShareDayCard from './components/ShareDayCard'
+import { shareDay } from './lib/shareDay'
 
 type View = 'today' | 'week' | 'coach' | 'settings'
 
@@ -33,6 +35,8 @@ export default function App() {
   const [range, setRange] = useState<DayTotal[]>([])
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [sheet, setSheet] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const shareCardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -156,6 +160,20 @@ export default function App() {
     setView('today')
   }
 
+  async function handleShareDay() {
+    setSharing(true)
+    // Wait for next frame so the card renders
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    if (shareCardRef.current) {
+      try {
+        await shareDay(shareCardRef.current, dstr)
+      } catch (err) {
+        console.error('[LeanKitchen] Share failed:', err)
+      }
+    }
+    setSharing(false)
+  }
+
   const dateText = (() => {
     if (ymd(date) === ymd(new Date())) return 'Today'
     const y = new Date(); y.setDate(y.getDate() - 1)
@@ -179,10 +197,28 @@ export default function App() {
           </button>
         </div>
         {view === 'today' && (
-          <div className="flex items-center justify-center gap-4 mt-3">
+          <div className="relative flex items-center justify-center gap-4 mt-3">
             <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); setDate(d) }} className="text-2xl text-inksoft px-2.5 active:opacity-60">‹</button>
             <span className="font-display font-semibold text-base min-w-[150px]">{dateText}</span>
             <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 1); setDate(d) }} className="text-2xl text-inksoft px-2.5 active:opacity-60">›</button>
+            {entries.length > 0 && (
+              <button
+                onClick={handleShareDay}
+                disabled={sharing}
+                className="absolute right-0 text-inksoft/60 active:text-inksoft disabled:opacity-50 p-1"
+                title="Share day"
+              >
+                {sharing ? (
+                  <span className="text-xs">...</span>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                    <polyline points="16 6 12 2 8 6" />
+                    <line x1="12" y1="2" x2="12" y2="15" />
+                  </svg>
+                )}
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -220,6 +256,20 @@ export default function App() {
       </nav>
 
       <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} totals={totals} targets={targets} />
+
+      {/* Hidden offscreen container for share image rendering */}
+      {sharing && (
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <ShareDayCard
+            ref={shareCardRef}
+            date={date}
+            totals={totals}
+            targets={targets}
+            dayType={dayType}
+            entries={entries}
+          />
+        </div>
+      )}
     </div>
   )
 }
