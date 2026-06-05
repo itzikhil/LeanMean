@@ -53,12 +53,13 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
       <div
         ref={ref}
         style={{
-          width: 400,
+          width: 420,
           padding: 24,
           background: '#f4ede0',
           fontFamily: 'Karla, system-ui, sans-serif',
           color: '#23201a',
           borderRadius: 20,
+          overflow: 'visible',
         }}
       >
         {/* Header */}
@@ -122,9 +123,9 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
               return (
                 <div key={m.id} style={{ marginBottom: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 5, background: m.color }} />
-                    <span style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 14 }}>{m.name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#6b6356' }}>{r(mk)} kcal</span>
+                    <span style={{ width: 10, height: 10, borderRadius: 5, flexShrink: 0, background: m.color }} />
+                    <span style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' }}>{m.name}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#6b6356', whiteSpace: 'nowrap' }}>{r(mk)} kcal</span>
                   </div>
                   {items.map((e, i) => (
                     <div key={i} style={{
@@ -136,18 +137,21 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
+                      gap: 8,
                     }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{e.name}{e.qty !== 1 && <span style={{ fontWeight: 400, opacity: 0.7 }}> ×{e.qty}</span>}</div>
-                        <div style={{ fontSize: 10, color: '#6b6356', marginTop: 2 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.name}{e.qty !== 1 && <span style={{ fontWeight: 400, opacity: 0.7 }}> ×{e.qty}</span>}
+                        </div>
+                        <div style={{ fontSize: 9, color: '#6b6356', marginTop: 2, whiteSpace: 'nowrap' }}>
                           <span>{r(e.kcal * e.qty)} kcal</span>
-                          <span style={{ marginLeft: 8, color: '#9c3d52' }}>{r(e.p * e.qty)}P</span>
-                          <span style={{ marginLeft: 6, color: '#b07d1e' }}>{r(e.c * e.qty)}C</span>
-                          <span style={{ marginLeft: 6, color: '#3f6e6a' }}>{r(e.f * e.qty)}F</span>
+                          <span style={{ marginLeft: 6, color: '#9c3d52' }}>{r(e.p * e.qty)}P</span>
+                          <span style={{ marginLeft: 4, color: '#b07d1e' }}>{r(e.c * e.qty)}C</span>
+                          <span style={{ marginLeft: 4, color: '#3f6e6a' }}>{r(e.f * e.qty)}F</span>
                         </div>
                       </div>
                       {e.created_at && (
-                        <div style={{ fontSize: 10, color: '#6b6356', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 10, color: '#6b6356', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {formatTime(e.created_at)}
                         </div>
                       )}

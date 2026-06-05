@@ -1,9 +1,15 @@
 import { toPng } from 'html-to-image'
 
 export async function shareDay(element: HTMLElement, dateStr: string): Promise<void> {
+  // Capture the full rendered size of the element
   const dataUrl = await toPng(element, {
     cacheBust: true,
     pixelRatio: 2, // Higher resolution for sharp images
+    width: element.scrollWidth,
+    height: element.scrollHeight,
+    style: {
+      overflow: 'visible',
+    },
   })
 
   // Convert data URL to blob
