@@ -55,6 +55,12 @@ export interface Settings {
   user_id?: string
   training: Targets
   rest: Targets
+  stepsGoal: number
+}
+
+export interface StepsEntry {
+  date: string
+  steps: number
 }
 
 export interface SavedMealItem {

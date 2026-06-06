@@ -153,10 +153,23 @@ export async function setDayType(date: string, day_type: DayType): Promise<void>
   await supabase.from('day_meta').upsert({ user_id: await uid(), date, day_type }, { onConflict: 'user_id,date' })
 }
 
-export async function setSteps(date: string, steps: number, steps_goal?: number): Promise<void> {
-  const update: Record<string, unknown> = { user_id: await uid(), date, steps }
-  if (steps_goal !== undefined) update.steps_goal = steps_goal
-  await supabase.from('day_meta').upsert(update, { onConflict: 'user_id,date' })
+export async function setSteps(date: string, steps: number): Promise<void> {
+  await supabase.from('day_meta').upsert({ user_id: await uid(), date, steps }, { onConflict: 'user_id,date' })
+}
+
+export interface StepsEntry { date: string; steps: number }
+
+export async function getSteps(sinceDays = 90): Promise<StepsEntry[]> {
+  const since = new Date()
+  since.setDate(since.getDate() - sinceDays)
+  const { data, error } = await supabase
+    .from('day_meta')
+    .select('date,steps')
+    .gte('date', ymd(since))
+    .gt('steps', 0)
+    .order('date', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((d) => ({ date: d.date, steps: d.steps ?? 0 }))
 }
 
 // ---------- Settings ----------
@@ -166,6 +179,7 @@ export async function getSettings(): Promise<Settings> {
   return {
     training: { kcal: data.training_kcal, p: data.training_p, c: data.training_c, f: data.training_f, fb: data.training_fb ?? 30 },
     rest: { kcal: data.rest_kcal, p: data.rest_p, c: data.rest_c, f: data.rest_f, fb: data.rest_fb ?? 30 },
+    stepsGoal: data.steps_goal ?? 8000,
   }
 }
 
@@ -177,6 +191,7 @@ export async function saveSettings(s: Settings): Promise<void> {
       user_id: uid,
       training_kcal: s.training.kcal, training_p: s.training.p, training_c: s.training.c, training_f: s.training.f, training_fb: s.training.fb,
       rest_kcal: s.rest.kcal, rest_p: s.rest.p, rest_c: s.rest.c, rest_f: s.rest.f, rest_fb: s.rest.fb,
+      steps_goal: s.stepsGoal,
     },
     { onConflict: 'user_id' },
   )

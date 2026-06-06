@@ -23,6 +23,21 @@ export default function Settings({ settings, onSave }: { settings: S; onSave: (s
           </div>
         </div>
       ))}
+
+      <div className="bg-paper2 border border-line rounded-2xl p-4">
+        <div className="font-display font-semibold text-[1.05rem] mb-3 flex items-center gap-2">
+          <span>👟</span> Daily steps goal
+        </div>
+        <input
+          type="number"
+          inputMode="numeric"
+          value={s.stepsGoal}
+          onChange={(e) => setS({ ...s, stepsGoal: +e.target.value || 8000 })}
+          className="w-full text-base px-3 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra"
+        />
+        <p className="text-[.72rem] text-inksoft/70 mt-1.5">Default: 8,000 steps</p>
+      </div>
+
       <button onClick={() => onSave(s)} className="w-full bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90">Save targets</button>
     </div>
   )
