@@ -5,7 +5,7 @@ import type { LogEntry, MealId, SavedMealItem } from '../lib/types'
 const r = (n: number) => Math.round(n)
 
 export default function LogList({
-  entries, onQty, onDelete, onCopyMeal, onCopyDay, onSaveMeal,
+  entries, onQty, onDelete, onCopyMeal, onCopyDay, onSaveMeal, onMoveMeal,
 }: {
   entries: LogEntry[]
   onQty: (id: string, delta: number) => void
@@ -13,11 +13,13 @@ export default function LogList({
   onCopyMeal: (meal: MealId, fromDate: string) => void
   onCopyDay: (fromDate: string) => void
   onSaveMeal: (name: string, items: SavedMealItem[]) => void
+  onMoveMeal: (id: string, meal: MealId) => void
 }) {
   const [copyOpen, setCopyOpen] = useState<MealId | 'day' | null>(null)
   const [copyDays, setCopyDays] = useState(1)
   const [savingMeal, setSavingMeal] = useState<MealId | null>(null)
   const [saveName, setSaveName] = useState('')
+  const [movingItem, setMovingItem] = useState<string | null>(null)
 
   function doCopy(meal?: MealId) {
     const d = new Date()
@@ -100,23 +102,41 @@ export default function LogList({
               </div>
             )}
             {items.map((e) => (
-              <div key={e.id} className="flex items-center gap-2.5 bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-[.95rem] truncate">{e.name}</div>
-                  <div className="text-[.7rem] text-inksoft mt-0.5">
-                    <span className="mr-2.5">{r(e.kcal * e.qty)} kcal</span>
-                    <span className="mr-2.5 text-macp">{r(e.p * e.qty)}P</span>
-                    <span className="mr-2.5 text-macc">{r(e.c * e.qty)}C</span>
-                    <span className="mr-2.5 text-macf">{r(e.f * e.qty)}F</span>
-                    <span className="text-[#8B7355]">{r((e.fb ?? 0) * e.qty)}FB</span>
+              <div key={e.id} className="bg-paper2 border border-line rounded-[11px] px-3 py-2.5 mb-1.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[.95rem] truncate">{e.name}</div>
+                    <div className="text-[.7rem] text-inksoft mt-0.5">
+                      <span className="mr-2.5">{r(e.kcal * e.qty)} kcal</span>
+                      <span className="mr-2.5 text-macp">{r(e.p * e.qty)}P</span>
+                      <span className="mr-2.5 text-macc">{r(e.c * e.qty)}C</span>
+                      <span className="mr-2.5 text-macf">{r(e.f * e.qty)}F</span>
+                      <span className="text-[#8B7355]">{r((e.fb ?? 0) * e.qty)}FB</span>
+                    </div>
                   </div>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => onQty(e.id, -0.5)} className="w-[26px] h-[26px] rounded-full border border-line bg-white text-forest text-base leading-none active:bg-paper">{'\u2212'}</button>
+                    <span className="font-bold text-[.82rem] min-w-[30px] text-center">{'\u00d7'}{e.qty}</span>
+                    <button onClick={() => onQty(e.id, 0.5)} className="w-[26px] h-[26px] rounded-full border border-line bg-white text-forest text-base leading-none active:bg-paper">{'\uff0b'}</button>
+                  </div>
+                  <button onClick={() => setMovingItem(movingItem === e.id ? null : e.id)} className="text-inksoft/50 active:text-inksoft text-[.68rem] font-bold px-1">move</button>
+                  <button onClick={() => onDelete(e.id)} className="text-macp/50 active:text-macp text-[1.05rem] px-1">{'\u2715'}</button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => onQty(e.id, -0.5)} className="w-[26px] h-[26px] rounded-full border border-line bg-white text-forest text-base leading-none active:bg-paper">{'\u2212'}</button>
-                  <span className="font-bold text-[.82rem] min-w-[30px] text-center">{'\u00d7'}{e.qty}</span>
-                  <button onClick={() => onQty(e.id, 0.5)} className="w-[26px] h-[26px] rounded-full border border-line bg-white text-forest text-base leading-none active:bg-paper">{'\uff0b'}</button>
-                </div>
-                <button onClick={() => onDelete(e.id)} className="text-macp/50 active:text-macp text-[1.05rem] px-1">{'\u2715'}</button>
+                {movingItem === e.id && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {MEALS.filter((targetM) => targetM.id !== e.meal).map((targetM) => (
+                      <button
+                        key={targetM.id}
+                        onClick={() => { onMoveMeal(e.id, targetM.id); setMovingItem(null) }}
+                        className="rounded-full px-2.5 py-1 text-[.72rem] font-bold text-white"
+                        style={{ background: targetM.color }}
+                      >
+                        {targetM.name}
+                      </button>
+                    ))}
+                    <button onClick={() => setMovingItem(null)} className="text-[.72rem] text-inksoft/60 px-1">cancel</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

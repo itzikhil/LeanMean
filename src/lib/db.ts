@@ -45,6 +45,34 @@ export async function deleteLog(id: string): Promise<void> {
   if (error) throw error
 }
 
+export async function updateMeal(id: string, meal: MealId): Promise<void> {
+  const { error } = await supabase.from('food_logs').update({ meal }).eq('id', id)
+  if (error) throw error
+}
+
+// Migrate legacy meal types to simplified meals
+export async function migrateMeals(): Promise<number> {
+  const userId = await uid()
+  if (!userId) return 0
+
+  // Map prewo and extras to snack
+  const { data: prewoData } = await supabase
+    .from('food_logs')
+    .update({ meal: 'snack' })
+    .eq('user_id', userId)
+    .eq('meal', 'prewo')
+    .select('id')
+
+  const { data: extrasData } = await supabase
+    .from('food_logs')
+    .update({ meal: 'snack' })
+    .eq('user_id', userId)
+    .eq('meal', 'extras')
+    .select('id')
+
+  return (prewoData?.length ?? 0) + (extrasData?.length ?? 0)
+}
+
 export async function copyEntries(fromDate: string, toDate: string, meal?: MealId): Promise<void> {
   const { data, error } = await supabase
     .from('food_logs')
@@ -106,14 +134,29 @@ export async function setWeight(date: string, weight_kg: number): Promise<void> 
   if (error) throw error
 }
 
-// ---------- Day type (training / rest) ----------
+// ---------- Day meta (type, steps) ----------
+export async function getDayMeta(date: string): Promise<{ day_type: DayType; steps: number; steps_goal: number }> {
+  const { data } = await supabase.from('day_meta').select('day_type,steps,steps_goal').eq('date', date).maybeSingle()
+  return {
+    day_type: (data?.day_type as DayType) ?? 'training',
+    steps: data?.steps ?? 0,
+    steps_goal: data?.steps_goal ?? 8000,
+  }
+}
+
 export async function getDayType(date: string): Promise<DayType> {
-  const { data } = await supabase.from('day_meta').select('day_type').eq('date', date).maybeSingle()
-  return (data?.day_type as DayType) ?? 'training'
+  const meta = await getDayMeta(date)
+  return meta.day_type
 }
 
 export async function setDayType(date: string, day_type: DayType): Promise<void> {
   await supabase.from('day_meta').upsert({ user_id: await uid(), date, day_type }, { onConflict: 'user_id,date' })
+}
+
+export async function setSteps(date: string, steps: number, steps_goal?: number): Promise<void> {
+  const update: Record<string, unknown> = { user_id: await uid(), date, steps }
+  if (steps_goal !== undefined) update.steps_goal = steps_goal
+  await supabase.from('day_meta').upsert(update, { onConflict: 'user_id,date' })
 }
 
 // ---------- Settings ----------

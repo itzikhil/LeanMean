@@ -13,9 +13,9 @@ export default function ProteinCoach({ totals, targets }: Props) {
   // Hide when protein target is met
   if (pLeft <= 0) return null
 
-  // Rank non-sauce menu items by protein-per-kcal (descending)
+  // Rank menu items by protein-per-kcal (descending), exclude low-cal condiments
   const ranked = MENU
-    .filter((m) => m.meal !== 'extras' && m.p > 0)
+    .filter((m) => m.p > 0 && m.kcal > 50)
     .map((m) => ({ ...m, ratio: m.p / m.kcal }))
     .sort((a, b) => b.ratio - a.ratio)
 

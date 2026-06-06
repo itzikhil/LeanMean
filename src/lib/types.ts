@@ -1,4 +1,4 @@
-export type MealId = 'breakfast' | 'snack' | 'lunch' | 'prewo' | 'dinner' | 'extras'
+export type MealId = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
 export interface Meal { id: MealId; name: string; color: string }
 
@@ -76,3 +76,10 @@ export interface SavedMeal {
 }
 
 export type DayType = 'training' | 'rest'
+
+export interface DayMeta {
+  date: string
+  day_type: DayType
+  steps?: number
+  steps_goal?: number
+}

@@ -67,7 +67,7 @@ export default function Coach({ totals, targets, dayType, weights }: Props) {
       }
     }
 
-    const menuStr = MENU.filter((m) => m.meal !== 'extras')
+    const menuStr = MENU.filter((m) => m.kcal > 50) // Exclude condiments
       .map((m) => `${m.code} ${m.name} (${m.meal}): ${m.kcal} kcal, ${m.p}p ${m.c}c ${m.f}f ${m.fb}fb`)
       .join('\n')
 

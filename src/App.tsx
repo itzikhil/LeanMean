@@ -3,8 +3,9 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import {
   addLog, addLogs, copyEntries, deleteLog, deleteSavedMeal as dbDeleteSavedMeal, deleteMyFood as dbDeleteMyFood,
-  getDayType, getLog, getMyFoods, getRange, getSavedMeals, getSettings, getWeights,
-  saveMeal as dbSaveMeal, saveSettings as dbSaveSettings, setDayType, setWeight, updateQty, upsertMyFood, ymd, type DayTotal,
+  getDayMeta, getLog, getMyFoods, getRange, getSavedMeals, getSettings, getWeights,
+  saveMeal as dbSaveMeal, saveSettings as dbSaveSettings, setDayType, setSteps, setWeight,
+  updateMeal, updateQty, upsertMyFood, migrateMeals, ymd, type DayTotal,
 } from './lib/db'
 import { DEFAULT_SETTINGS } from './lib/targets'
 import type { DayType, LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Settings as TSettings, WeightEntry } from './lib/types'
@@ -36,6 +37,9 @@ export default function App() {
   const [weights, setWeights] = useState<WeightEntry[]>([])
   const [sheet, setSheet] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [steps, setStepsState] = useState(0)
+  const [stepsGoal, setStepsGoal] = useState(8000)
+  const [editingSteps, setEditingSteps] = useState(false)
   const shareCardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,13 +55,17 @@ export default function App() {
 
   const loadDay = useCallback(async () => {
     if (!session) return
-    const [log, dt] = await Promise.all([getLog(dstr), getDayType(dstr)])
+    const [log, meta] = await Promise.all([getLog(dstr), getDayMeta(dstr)])
     setEntries(log)
-    setDay(dt)
+    setDay(meta.day_type)
+    setStepsState(meta.steps)
+    setStepsGoal(meta.steps_goal)
   }, [session, dstr])
 
   useEffect(() => {
     if (!session) return
+    // Migrate legacy meal types on login
+    migrateMeals().catch(console.error)
     getSettings().then(setSettings)
     getMyFoods().then(setMyFoods)
     getSavedMeals().then(setSavedMeals)
@@ -160,6 +168,17 @@ export default function App() {
     setView('today')
   }
 
+  async function handleMoveMeal(id: string, meal: MealId) {
+    setEntries(entries.map((e) => e.id === id ? { ...e, meal } : e))
+    await updateMeal(id, meal)
+  }
+
+  async function handleUpdateSteps(newSteps: number, newGoal?: number) {
+    setStepsState(newSteps)
+    if (newGoal !== undefined) setStepsGoal(newGoal)
+    await setSteps(dstr, newSteps, newGoal)
+  }
+
   async function handleShareDay() {
     setSharing(true)
     // Wait for next frame so the card renders
@@ -226,9 +245,63 @@ export default function App() {
       {view === 'today' && (
         <>
           <div className="mt-3"><Summary totals={totals} targets={targets} dayType={dayType} onToggleDay={toggleDay} /></div>
+
+          {/* Steps tracker */}
+          <div className="mt-4 bg-paper2 border border-line rounded-2xl px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👟</span>
+                <span className="font-display font-semibold text-[.95rem]">Steps</span>
+              </div>
+              {editingSteps ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={steps}
+                    onChange={(e) => setStepsState(+e.target.value || 0)}
+                    className="w-20 text-center text-sm px-2 py-1 border border-line rounded-lg bg-white focus:outline-none focus:border-terra"
+                    autoFocus
+                  />
+                  <span className="text-inksoft/60 text-sm">/</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={stepsGoal}
+                    onChange={(e) => setStepsGoal(+e.target.value || 8000)}
+                    className="w-20 text-center text-sm px-2 py-1 border border-line rounded-lg bg-white focus:outline-none focus:border-terra"
+                  />
+                  <button
+                    onClick={() => { handleUpdateSteps(steps, stepsGoal); setEditingSteps(false) }}
+                    className="text-forest font-bold text-sm px-2"
+                  >
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setEditingSteps(true)}
+                  className="text-sm text-inksoft active:text-forest"
+                >
+                  <span className="font-display font-bold text-forest">{steps.toLocaleString()}</span>
+                  <span className="text-inksoft/60"> / {stepsGoal.toLocaleString()}</span>
+                </button>
+              )}
+            </div>
+            <div className="mt-2 h-2 rounded-md bg-line overflow-hidden">
+              <div
+                className="h-full rounded-md bg-forest transition-all duration-300"
+                style={{ width: Math.min(100, (steps / stepsGoal) * 100) + '%' }}
+              />
+            </div>
+            <div className="text-[.72rem] text-inksoft/70 mt-1 text-right">
+              {steps >= stepsGoal ? 'Goal reached!' : `${(stepsGoal - steps).toLocaleString()} to go`}
+            </div>
+          </div>
+
           <QuickSuggestions onAdd={handleAdd} />
           <ProteinCoach totals={totals} targets={targets} />
-          <LogList entries={entries} onQty={handleQty} onDelete={handleDelete} onCopyMeal={handleCopyMeal} onCopyDay={handleCopyDay} onSaveMeal={handleSaveMeal} />
+          <LogList entries={entries} onQty={handleQty} onDelete={handleDelete} onCopyMeal={handleCopyMeal} onCopyDay={handleCopyDay} onSaveMeal={handleSaveMeal} onMoveMeal={handleMoveMeal} />
         </>
       )}
       {view === 'week' && (
