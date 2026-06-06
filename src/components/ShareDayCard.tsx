@@ -21,14 +21,14 @@ function MacroBar({ label, val, goal, fill }: { label: string; val: number; goal
   const over = val > goal
   return (
     <div style={{ flex: 1, textAlign: 'center' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, opacity: 0.85 }}>{label}</div>
-      <div style={{ height: 6, borderRadius: 4, background: 'rgba(244,237,224,0.2)', overflow: 'hidden' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, opacity: 0.85 }}>{label}</div>
+      <div style={{ height: 8, borderRadius: 4, background: 'rgba(244,237,224,0.2)', overflow: 'hidden' }}>
         <div style={{ height: '100%', borderRadius: 4, width: pct + '%', background: fill }} />
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, marginTop: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>
         {r(val)} / {goal}g
       </div>
-      <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>
+      <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
         {over ? <span style={{ color: '#ffb4a8' }}>{r(val - goal)}g over</span> : `${r(goal - val)}g left`}
       </div>
     </div>
@@ -53,13 +53,14 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
       <div
         ref={ref}
         style={{
-          width: 420,
-          padding: 24,
+          width: 600,
+          minWidth: 600,
+          padding: 28,
           background: '#f4ede0',
           fontFamily: 'Karla, system-ui, sans-serif',
           color: '#23201a',
-          borderRadius: 20,
-          overflow: 'visible',
+          borderRadius: 24,
+          boxSizing: 'border-box',
         }}
       >
         {/* Header */}
@@ -102,7 +103,7 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
           </div>
 
           {/* Macro bars */}
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 20 }}>
             <MacroBar label="Protein" val={totals.p} goal={targets.p} fill="#e98aa0" />
             <MacroBar label="Carbs" val={totals.c} goal={targets.c} fill="#e7c46a" />
             <MacroBar label="Fat" val={totals.f} goal={targets.f} fill="#7fb8b3" />
@@ -121,40 +122,49 @@ const ShareDayCard = forwardRef<HTMLDivElement, ShareDayCardProps>(
               if (!items.length) return null
               const mk = items.reduce((s, e) => s + e.kcal * e.qty, 0)
               return (
-                <div key={m.id} style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 5, flexShrink: 0, background: m.color }} />
-                    <span style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' }}>{m.name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: '#6b6356', whiteSpace: 'nowrap' }}>{r(mk)} kcal</span>
+                <div key={m.id} style={{ marginBottom: 16 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 8,
+                    flexWrap: 'nowrap',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <span style={{ width: 12, height: 12, borderRadius: 6, background: m.color, flexShrink: 0 }} />
+                      <span style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap' }}>{m.name}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#6b6356', whiteSpace: 'nowrap', flexShrink: 0 }}>{r(mk)} kcal</span>
                   </div>
                   {items.map((e, i) => (
                     <div key={i} style={{
                       background: '#fbf7ef',
                       border: '1px solid #ddd0bb',
-                      borderRadius: 10,
-                      padding: '8px 12px',
-                      marginBottom: 4,
+                      borderRadius: 12,
+                      padding: '10px 14px',
+                      marginBottom: 6,
                       display: 'flex',
-                      justifyContent: 'space-between',
                       alignItems: 'center',
-                      gap: 8,
+                      flexWrap: 'nowrap',
                     }}>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.name}{e.qty !== 1 && <span style={{ fontWeight: 400, opacity: 0.7 }}> ×{e.qty}</span>}
                         </div>
-                        <div style={{ fontSize: 9, color: '#6b6356', marginTop: 2, whiteSpace: 'nowrap' }}>
-                          <span>{r(e.kcal * e.qty)} kcal</span>
-                          <span style={{ marginLeft: 6, color: '#9c3d52' }}>{r(e.p * e.qty)}P</span>
-                          <span style={{ marginLeft: 4, color: '#b07d1e' }}>{r(e.c * e.qty)}C</span>
-                          <span style={{ marginLeft: 4, color: '#3f6e6a' }}>{r(e.f * e.qty)}F</span>
+                        <div style={{ fontSize: 11, color: '#6b6356', marginTop: 3, whiteSpace: 'nowrap' }}>
+                          {r(e.kcal * e.qty)} kcal
+                          <span style={{ marginLeft: 10, color: '#9c3d52' }}>{r(e.p * e.qty)}P</span>
+                          <span style={{ marginLeft: 6, color: '#b07d1e' }}>{r(e.c * e.qty)}C</span>
+                          <span style={{ marginLeft: 6, color: '#3f6e6a' }}>{r(e.f * e.qty)}F</span>
                         </div>
                       </div>
-                      {e.created_at && (
-                        <div style={{ fontSize: 10, color: '#6b6356', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {formatTime(e.created_at)}
-                        </div>
-                      )}
+                      <div style={{ width: 70, textAlign: 'right', flexShrink: 0, paddingLeft: 12 }}>
+                        {e.created_at && (
+                          <span style={{ fontSize: 11, color: '#6b6356', whiteSpace: 'nowrap' }}>
+                            {formatTime(e.created_at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
