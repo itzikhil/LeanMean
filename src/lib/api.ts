@@ -8,15 +8,22 @@ export async function authFetch<T = unknown>(
   url: string,
   body: Record<string, unknown>,
 ): Promise<T> {
-  const { data: sessionData } = await supabase.auth.getSession()
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   const token = sessionData?.session?.access_token
+
+  // Debug logging (temporary)
+  console.log('[authFetch]', url, { hasToken: !!token, sessionError: sessionError?.message })
+
+  if (!token) {
+    throw new Error('Not authenticated - please sign in again')
+  }
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     })
