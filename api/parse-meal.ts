@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireAuth } from './_auth.js'
 import { genAI, geminiWithRetry, friendlyError } from './_gemini.js'
 
 /** Strip markdown fences and any text before the first [/{ or after the last ]/}. */
@@ -14,6 +15,9 @@ function extractJson(raw: string): string {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+
+    const userId = await requireAuth(req, res)
+    if (!userId) return
 
     const { text, knownFoods } = req.body as { text?: string; knownFoods?: string }
     if (!text) return res.status(400).json({ error: 'Missing text' })

@@ -1,9 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { requireAuth } from './_auth.js'
 import { genAI, geminiWithRetry, friendlyError } from './_gemini.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+
+    const userId = await requireAuth(req, res)
+    if (!userId) return
 
     const { message, context } = req.body as { message?: string; context?: string }
     if (!message) return res.status(400).json({ error: 'Missing message' })
