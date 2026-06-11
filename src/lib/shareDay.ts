@@ -1,9 +1,19 @@
 import { toPng } from 'html-to-image'
 
 export async function shareDay(element: HTMLElement, dateStr: string): Promise<void> {
+  // Force minimum width of 600px to prevent text wrapping issues
+  const width = Math.max(600, element.scrollWidth)
+  const height = element.scrollHeight
+
   const dataUrl = await toPng(element, {
     cacheBust: true,
     pixelRatio: 2, // Higher resolution for sharp images
+    width,
+    height,
+    style: {
+      width: '600px',
+      minWidth: '600px',
+    },
   })
 
   // Convert data URL to blob
