@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MENU } from '../lib/menu'
 import { STAPLES } from '../lib/staples'
-import { authFetch } from '../lib/api'
 import type { Targets, WeightEntry } from '../lib/types'
 
 interface Message {
@@ -101,7 +100,24 @@ ${stapleStr}`
     setLoading(true)
 
     try {
-      const data = await authFetch<{ reply?: string }>('/api/coach', { message: text.trim(), context })
+      let data: { reply?: string; error?: string } | undefined
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await fetch('/api/coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text.trim(), context }),
+        })
+        const ct = res.headers.get('content-type') ?? ''
+        if (!ct.includes('application/json')) {
+          if (res.status >= 500 && attempt === 0) continue
+          throw new Error('Coach is temporarily unavailable — try again in a moment.')
+        }
+        try { data = await res.json() } catch { data = { error: `Server error (${res.status})` } }
+        if (res.status >= 500 && attempt === 0) continue
+        break
+      }
+      if (!data) throw new Error('Coach is temporarily unavailable — try again in a moment.')
+      if (data.error) throw new Error(data.error)
       setMessages((prev) => [...prev, { role: 'assistant', text: data.reply ?? '' }])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')

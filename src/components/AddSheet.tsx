@@ -3,7 +3,6 @@ import { MEALS, MENU } from '../lib/menu'
 import { STAPLES, STAPLE_CATEGORIES, STAPLE_CATEGORY_COLORS, matchCookedFactor } from '../lib/staples'
 import { lookupBarcode, searchByName, type OFFResult } from '../lib/openfoodfacts'
 import { resizeImage } from '../lib/resizeImage'
-import { authFetch } from '../lib/api'
 import type { LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Targets } from '../lib/types'
 import type { Staple } from '../lib/staples'
 import BarcodeScanner from './BarcodeScanner'
@@ -136,7 +135,9 @@ export default function AddSheet({
         if (fileRef.current) fileRef.current.value = ''
         return
       }
-      const data = await authFetch<{ name?: string; basis?: string; kcal?: number; p?: number; c?: number; f?: number; fb?: number }>('/api/parse-label', { image: b64 })
+      const body = JSON.stringify({ image: b64 })
+      const data = await fetchWithRetry('/api/parse-label', body)
+      if (data.error) { setScanMsg(errorToString(data.error)); setPhotoLoading(false); return }
       const basis = data.basis === 'serving' ? 'serving' as const : '100g' as const
       const scanName = data.name || 'Scanned food'
       setPending({
@@ -216,6 +217,31 @@ export default function AddSheet({
     close()
   }
 
+  /** Stringify any error value (Vercel 504 returns {error: {code, message}} — an object, not a string). */
+  function errorToString(err: unknown): string {
+    if (typeof err === 'string') return err
+    if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message)
+    return String(err)
+  }
+
+  /** POST JSON with one silent retry (absorbs cold-start timeouts). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function fetchWithRetry(url: string, body: string): Promise<any> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+      if (res.ok) return res.json()
+      let data: { error: string }
+      try { data = await res.json() } catch { data = { error: `Server error (${res.status})` } }
+      if (res.status >= 500 && attempt === 0) continue
+      return data
+    }
+    return { error: 'Request failed after retry' }
+  }
+
   function knownFoodsContext() {
     const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F/${m.fb}FB (meal: ${m.meal})`).join('\n')
     const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F/${s.fb}FB per ${s.basis}`).join('\n')
@@ -229,11 +255,13 @@ export default function AddSheet({
     setAiError(null)
     setAiItems([])
     try {
-      const data = await authFetch<{ items?: ParsedItem[] }>('/api/parse-meal', { text, knownFoods: knownFoodsContext() })
+      const data = await fetchWithRetry('/api/parse-meal', JSON.stringify({ text, knownFoods: knownFoodsContext() }))
+      if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not parse any food items. Try rephrasing.'); return }
-      setAiItems(data.items.map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
+      setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Failed to parse meal')
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setAiError(`Failed to parse meal: ${msg}`)
     } finally {
       setAiLoading(false)
     }
@@ -258,11 +286,13 @@ export default function AddSheet({
         setAiError('Image still too large after compression. Try a simpler photo.')
         return
       }
-      const data = await authFetch<{ items?: ParsedItem[] }>('/api/parse-plate', { image: b64, knownFoods: knownFoodsContext() })
+      const data = await fetchWithRetry('/api/parse-plate', JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }))
+      if (data.error) { setAiError(errorToString(data.error)); return }
       if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
-      setAiItems(data.items.map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
+      setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Photo analysis failed')
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      setAiError(`Photo analysis failed: ${msg}`)
     } finally {
       setAiLoading(false)
       if (plateRef.current) plateRef.current.value = ''
