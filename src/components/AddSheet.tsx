@@ -22,6 +22,16 @@ function qualityBadges(kcal: number, p: number, fb: number, lowP: boolean, lowFb
     </span>
   )
 }
+/**
+ * Servings for an AI-parsed item. The server normalizes this, but the confirm
+ * step lets it be edited (and emptied), so re-clamp before it reaches the log.
+ */
+function normQty(v: number | string | undefined): number {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.max(0.5, Math.round(n * 2) / 2)
+}
+
 type Tab = 'menu' | 'staples' | 'recents' | 'custom' | 'find' | 'ai'
 interface Pending { name: string; meal: MealId; basis: 'serving' | '100g'; per100: { kcal: number; p: number; c: number; f: number; fb: number }; cookedFactor?: number }
 interface ParsedItem { name: string; kcal: number; p: number; c: number; f: number; fb: number; qty: number; meal: MealId; estimated?: boolean; cookedFactor?: number; weighMode?: 'raw' | 'cooked' }
@@ -320,7 +330,7 @@ export default function AddSheet({
         c: +Number(item.c).toFixed(1),
         f: +Number(item.f).toFixed(1),
         fb: +Number(item.fb ?? 0).toFixed(1),
-        qty: item.qty || 1,
+        qty: normQty(item.qty),
       }))
       await onAddMultiple(entries)
       // Save each AI-parsed item to My Foods for future one-tap re-logging
@@ -334,6 +344,21 @@ export default function AddSheet({
       setAdding(false)
     }
   }
+
+  /** Preview totals for the AI confirm step — must match what gets logged, i.e. scaled by qty. */
+  const aiTotals = aiItems.reduce(
+    (s, i) => {
+      const q = normQty(i.qty)
+      return {
+        kcal: s.kcal + (+i.kcal || 0) * q,
+        p: s.p + (+i.p || 0) * q,
+        c: s.c + (+i.c || 0) * q,
+        f: s.f + (+i.f || 0) * q,
+        fb: s.fb + (+(i.fb ?? 0) || 0) * q,
+      }
+    },
+    { kcal: 0, p: 0, c: 0, f: 0, fb: 0 },
+  )
 
   const tabs: [Tab, string][] = [['menu', 'Menu'], ['staples', 'Staples'], ['recents', 'My foods'], ['custom', 'Custom'], ['find', 'Find / Scan'], ['ai', 'AI']]
 
@@ -649,13 +674,25 @@ export default function AddSheet({
                               </button>
                             </div>
                           )}
-                          <div className="mt-1.5">
+                          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                            <span className="text-[.7rem] text-inksoft flex items-center gap-1">
+                              <span className="font-bold">×</span>
+                              <input type="number" inputMode="decimal" min="0.5" step="0.5" value={item.qty}
+                                onChange={(e) => updateAiItem(idx, 'qty', e.target.value)}
+                                aria-label="Servings"
+                                className="w-12 bg-white border border-line rounded px-1 py-0.5 text-center focus:outline-none focus:border-terra" />
+                            </span>
                             <select value={item.meal} onChange={(e) => updateAiItem(idx, 'meal', e.target.value)}
                               className="text-[.7rem] bg-white border border-line rounded px-1.5 py-0.5 text-inksoft">
                               {MEALS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
-                            {item.estimated && <span className="ml-2 text-[.65rem] text-terra italic">estimated</span>}
+                            {item.estimated && <span className="text-[.65rem] text-terra italic">estimated</span>}
                           </div>
+                          {normQty(item.qty) !== 1 && (
+                            <p className="mt-1 text-[.66rem] font-semibold text-terra">
+                              Logs as {Math.round((+item.kcal || 0) * normQty(item.qty))} kcal total
+                            </p>
+                          )}
                         </div>
                         <button onClick={() => removeAiItem(idx)} className="text-macp/40 active:text-macp px-1 pt-1">✕</button>
                       </div>
@@ -663,7 +700,7 @@ export default function AddSheet({
                     )
                   })}
                   <div className="bg-paper2 border border-line rounded-[11px] px-3 py-2 mt-2 text-center text-[.78rem] font-semibold text-inksoft">
-                    Total: {Math.round(aiItems.reduce((s, i) => s + (+i.kcal), 0))} kcal · {Math.round(aiItems.reduce((s, i) => s + (+i.p), 0))}P / {Math.round(aiItems.reduce((s, i) => s + (+i.c), 0))}C / {Math.round(aiItems.reduce((s, i) => s + (+i.f), 0))}F / {Math.round(aiItems.reduce((s, i) => s + (+(i.fb ?? 0)), 0))}FB
+                    Total: {Math.round(aiTotals.kcal)} kcal · {Math.round(aiTotals.p)}P / {Math.round(aiTotals.c)}C / {Math.round(aiTotals.f)}F / {Math.round(aiTotals.fb)}FB
                   </div>
                   <button onClick={confirmAiItems} disabled={adding}
                     className="w-full mt-4 bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90 disabled:opacity-60">

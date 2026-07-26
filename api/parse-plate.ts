@@ -1,15 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { genAI, geminiWithRetry, friendlyError } from './_gemini.js'
-
-/** Strip markdown fences and any text before the first [ or after the last ]. */
-function extractJson(raw: string): string {
-  let s = raw.trim()
-  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-  const start = s.search(/[\[{]/)
-  const end = Math.max(s.lastIndexOf(']'), s.lastIndexOf('}'))
-  if (start >= 0 && end >= start) s = s.slice(start, end + 1)
-  return s
-}
+import { extractJson, normalizeItems } from './_parsed.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -24,10 +15,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const prompt = `Identify foods on this plate with estimated portions and macros. Match known foods when possible.
 
-KNOWN FOODS:
+KNOWN FOODS (macros are listed per 100g or per serving as noted — scale them to the portion you see):
 ${knownFoods || '(none)'}
 
-Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":true}
+RULES:
+- kcal/p/c/f/fb must be the TOTAL for the portion on the plate, already scaled. Never return per-100g values.
+- Put the estimated weight in the name, as "Food (~Xg)".
+- "qty" is the number of SERVINGS of an item. It is NEVER a weight and defaults to 1.
+  A 138g piece of chicken is {"name":"Chicken breast (~138g)","kcal":166,...,"qty":1}, never qty:138.
+- Use qty > 1 only for genuinely countable repeats: two visible eggs -> qty:2 with per-egg macros.
+- "meal" must be exactly one of: breakfast, lunch, dinner, snack.
+
+Return ONLY a JSON array. Each item: {"name":"Food (~Xg)","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|lunch|dinner|snack","estimated":true}
 If no food visible return [].`
 
     const content = [
@@ -46,7 +45,7 @@ If no food visible return [].`
       try {
         const parsed = JSON.parse(extractJson(raw))
         if (!Array.isArray(parsed)) continue
-        return res.status(200).json({ items: parsed })
+        return res.status(200).json({ items: normalizeItems(parsed, 'parse-plate') })
       } catch {
         if (attempt === 0) continue
       }

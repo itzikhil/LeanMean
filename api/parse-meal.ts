@@ -1,15 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { genAI, geminiWithRetry, friendlyError } from './_gemini.js'
-
-/** Strip markdown fences and any text before the first [/{ or after the last ]/}. */
-function extractJson(raw: string): string {
-  let s = raw.trim()
-  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-  const start = s.search(/[\[{]/)
-  const end = Math.max(s.lastIndexOf(']'), s.lastIndexOf('}'))
-  if (start >= 0 && end >= start) s = s.slice(start, end + 1)
-  return s
-}
+import { extractJson, normalizeItems } from './_parsed.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -20,12 +11,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const prompt = `Parse this meal into food items with macros. Match against known foods when possible; estimate unknowns.
 
-KNOWN FOODS:
+KNOWN FOODS (macros are listed per 100g or per serving as noted — scale them to the amount actually eaten):
 ${knownFoods || '(none)'}
 
 INPUT: "${text}"
 
-Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|snack|lunch|prewo|dinner|extras","estimated":bool}
+RULES:
+- kcal/p/c/f/fb must be the TOTAL for the amount eaten, already scaled. Never return per-100g values.
+- "qty" is the number of SERVINGS of an item. It is NEVER a weight and defaults to 1.
+  A weight belongs in the name and in the scaled macros:
+  "138 grams of chicken breast" -> {"name":"Chicken breast (138g)","kcal":166,"p":32,"c":0,"f":3.6,"fb":0,"qty":1}
+  NOT {"kcal":120,"qty":138} and NOT {"kcal":166,"qty":138}.
+- Use qty > 1 only for genuinely countable repeats: "3 eggs" -> qty:3 with per-egg macros.
+- "meal" must be exactly one of: breakfast, lunch, dinner, snack.
+
+Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|lunch|dinner|snack","estimated":bool}
 Use estimated:false for known-food matches, true for estimates. If unparseable return [].`
 
     const model = genAI.getGenerativeModel({
@@ -39,7 +39,7 @@ Use estimated:false for known-food matches, true for estimates. If unparseable r
       try {
         const parsed = JSON.parse(extractJson(raw))
         if (!Array.isArray(parsed)) continue
-        return res.status(200).json({ items: parsed })
+        return res.status(200).json({ items: normalizeItems(parsed, 'parse-meal') })
       } catch {
         if (attempt === 0) continue
       }
