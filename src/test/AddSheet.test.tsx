@@ -22,13 +22,15 @@ const baseProps = {
 
 beforeEach(() => vi.clearAllMocks())
 
-describe('AddSheet – Staples tab', () => {
+describe('AddSheet – Staples search', () => {
   it('serving staple (egg): shows pending UI with servings input, uses selected qty and meal', async () => {
     const user = userEvent.setup()
     render(<AddSheet {...baseProps} />)
 
-    await user.click(screen.getByRole('button', { name: 'Staples' }))
-    await user.click(screen.getByRole('button', { name: /Whole egg/i }))
+    // Search for egg
+    const searchInput = screen.getByPlaceholderText('Search foods...')
+    await user.type(searchInput, 'whole egg')
+    await user.click(screen.getByRole('button', { name: /Whole egg/ }))
 
     // Pending UI visible
     expect(screen.getByText('Whole egg')).toBeInTheDocument()
@@ -61,7 +63,9 @@ describe('AddSheet – Staples tab', () => {
     const user = userEvent.setup()
     render(<AddSheet {...baseProps} />)
 
-    await user.click(screen.getByRole('button', { name: 'Staples' }))
+    // Search for chicken breast
+    const searchInput = screen.getByPlaceholderText('Search foods...')
+    await user.type(searchInput, 'chicken breast')
     await user.click(screen.getByRole('button', { name: /Chicken breast \(raw\)/i }))
 
     // Pending UI shows grams input, not servings
