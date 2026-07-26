@@ -23,7 +23,7 @@ export const STAPLES: Staple[] = [
   { name: 'Chicken thigh, boneless skinless (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.75, kcal: 145, p: 19, c: 0, f: 7.5, fb: 0 },
   { name: 'Beef mince 5% (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.7, kcal: 149, p: 21, c: 0, f: 5, fb: 0 },
   { name: 'Salmon fillet (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.75, kcal: 208, p: 20, c: 0, f: 13, fb: 0 },
-  { name: 'White fish / cod (raw)', category: 'Protein', basis: '100g', kcal: 82, p: 18, c: 0, f: 0.7, fb: 0 },
+  { name: 'White fish / cod (raw)', category: 'Protein', basis: '100g', cookedFactor: 0.8, kcal: 82, p: 18, c: 0, f: 0.7, fb: 0 },
   { name: 'Tuna, canned in water (drained)', category: 'Protein', basis: '100g', kcal: 116, p: 26, c: 0, f: 1, fb: 0 },
   { name: 'Turkey ham', category: 'Protein', basis: '100g', kcal: 88, p: 19.5, c: 0.5, f: 0.9, fb: 0 },
 
@@ -96,6 +96,7 @@ const COOKED_KEYWORDS: [RegExp, number][] = [
   [/turkey/i, 0.75],
   [/beef|mince/i, 0.7],
   [/salmon/i, 0.75],
+  [/white\s*fish|cod|haddock|pollock|tilapia/i, 0.8],
   [/\brice\b/i, 2.7],
   [/pasta|spaghetti|penne|fusilli/i, 2.3],
   [/\boats\b|oatmeal|porridge/i, 3.0],

@@ -38,6 +38,7 @@ export interface MyFood {
   c: number
   f: number
   fb: number
+  cooked_factor?: number  // cooked weight ÷ raw weight (for raw/cooked toggle)
   use_count: number
   last_used: string
 }

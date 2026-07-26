@@ -298,13 +298,14 @@ export default function AddSheet({
 
   function chooseMyFood(f: MyFood) {
     if (f.basis === '100g') {
-      setPending({ name: f.name, meal: 'snack', basis: '100g', per100: { kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 } })
-      setView('pending')
+      // Use stored cooked_factor, or fall back to matchCookedFactor by name
+      const factor = f.cooked_factor ?? matchCookedFactor(f.name)
+      setPending({ name: f.name, meal: 'snack', basis: '100g', per100: { kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 }, cookedFactor: factor })
     } else {
-      onAdd({ meal: 'snack', name: f.name, kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0, qty: 1 })
-      onSaveMyFood({ name: f.name, basis: 'serving', kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 })
-      close()
+      // Serving-basis items also go through pending to allow qty + meal selection
+      setPending({ name: f.name, meal: 'snack', basis: 'serving', per100: { kcal: f.kcal, p: f.p, c: f.c, f: f.f, fb: f.fb ?? 0 } })
     }
+    setView('pending')
   }
 
   function chooseStaple(s: Staple) {
@@ -431,7 +432,7 @@ export default function AddSheet({
         fb: +(pending.per100.fb * k).toFixed(1),
         qty: 1,
       })
-      onSaveMyFood({ name: pending.name, basis: '100g', ...pending.per100 })
+      onSaveMyFood({ name: pending.name, basis: '100g', ...pending.per100, cooked_factor: pending.cookedFactor })
       close()
     } catch (err) {
       console.error('[AddSheet] confirmPending failed:', err)
@@ -624,7 +625,7 @@ export default function AddSheet({
                 {pending.basis === '100g'
                   ? weighMode === 'cooked' && pending.cookedFactor
                     ? `Per 100g cooked: ${Math.round(pending.per100.kcal / pending.cookedFactor)} kcal · ${(pending.per100.p / pending.cookedFactor).toFixed(1)}P / ${(pending.per100.c / pending.cookedFactor).toFixed(1)}C / ${(pending.per100.f / pending.cookedFactor).toFixed(1)}F / ${(pending.per100.fb / pending.cookedFactor).toFixed(1)}FB`
-                    : `Per 100g raw: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F / ${pending.per100.fb}FB`
+                    : `Per 100g${pending.cookedFactor ? ' raw' : ''}: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F / ${pending.per100.fb}FB`
                   : `Per serving: ${pending.per100.kcal} kcal · ${pending.per100.p}P / ${pending.per100.c}C / ${pending.per100.f}F / ${pending.per100.fb}FB`}
               </p>
               {pending.basis === '100g' && pending.cookedFactor && (
