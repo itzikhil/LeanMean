@@ -39,6 +39,8 @@ export default function Settings({ settings, onSave }: { settings: S; onSave: (s
       </div>
 
       <button onClick={() => onSave(s)} className="w-full bg-forest text-white font-bold py-3.5 rounded-xl active:opacity-90">Save targets</button>
+
+      <p className="text-center text-[.65rem] text-inksoft/40 mt-4">build {__BUILD_HASH__}</p>
     </div>
   )
 }
