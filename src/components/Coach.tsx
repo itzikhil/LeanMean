@@ -121,10 +121,11 @@ STAPLES:
 ${stapleStr}`
   }, [totals, targets, dayType, weights, myFoods, range, todayEntries, remaining])
 
-  async function send(text: string) {
-    if (!text.trim() || loading) return
+  async function send(prompt: string, displayText?: string) {
+    if (!prompt.trim() || loading) return
     setError('')
-    const userMsg: Message = { role: 'user', text: text.trim() }
+    // Show displayText to user if provided, otherwise show the prompt
+    const userMsg: Message = { role: 'user', text: displayText ?? prompt.trim() }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setLoading(true)
@@ -135,7 +136,7 @@ ${stapleStr}`
         const res = await fetch('/api/coach', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text.trim(), context }),
+          body: JSON.stringify({ message: prompt.trim(), context }),
         })
         const ct = res.headers.get('content-type') ?? ''
         if (!ct.includes('application/json')) {
@@ -157,18 +158,18 @@ ${stapleStr}`
   }
 
   function planMyDay() {
-    const prompt = `Plan the rest of my day. I have ${Math.round(remaining.kcal)} kcal and ${Math.round(remaining.p)}g protein left to eat.
+    const displayText = 'Plan the rest of my day'
+    const prompt = `Plan my remaining meals. I have ${Math.round(remaining.kcal)} kcal and ${Math.round(remaining.p)}g protein left.
 
-RULES:
+REQUIREMENTS:
 - Suggest 2-3 realistic meals/snacks (not one giant meal)
 - Prioritize hitting protein target
 - Stay within remaining calories
-- Use foods from my menu, staples, or frequent foods when possible
-- Consider the time of day and what I've already eaten
-- Keep portions reasonable
+- Use foods from my menu, staples, or frequent foods
+- Consider time of day and what I've already eaten
 
-Give me a specific plan with foods and approximate portions.`
-    send(prompt)
+Start immediately with the meal list.`
+    send(prompt, displayText)
   }
 
   const hasRemaining = remaining.kcal > 100 || remaining.p > 10
