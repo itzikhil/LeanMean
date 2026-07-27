@@ -1,6 +1,7 @@
 {
   "functions": {
     "api/parse-label.ts": { "maxDuration": 60 },
-    "api/parse-meal.ts": { "maxDuration": 60 }
+    "api/parse-meal.ts": { "maxDuration": 60 },
+    "api/coach.ts": { "maxDuration": 60 }
   }
 }
