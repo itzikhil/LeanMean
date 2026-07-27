@@ -127,7 +127,6 @@ export default function AddSheet({
 
   const [kbOffset, setKbOffset] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
-  const plateRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -501,39 +500,6 @@ export default function AddSheet({
     }
   }
 
-  async function onPlatePhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setAiLoading(true)
-    setAiError(null)
-    setAiItems([])
-    try {
-      let b64: string
-      try {
-        b64 = await resizeImage(file, 1024, 0.8)
-      } catch (resizeErr) {
-        const msg = resizeErr instanceof Error ? resizeErr.message : 'Unknown resize error'
-        setAiError(`Image processing failed: ${msg}. Try a different photo.`)
-        return
-      }
-      if (b64.length > 4_000_000) {
-        setAiError('Image still too large after compression. Try a simpler photo.')
-        return
-      }
-      const data = await fetchWithRetry('/api/parse-plate', JSON.stringify({ image: b64, knownFoods: knownFoodsContext() }))
-      if (data.error) { setAiError(errorToString(data.error)); return }
-      if (!data.items?.length) { setAiError('Could not identify food in the photo. Try again or enter manually.'); return }
-      setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
-      setView('ai-confirm')
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      setAiError(`Photo analysis failed: ${msg}`)
-    } finally {
-      setAiLoading(false)
-      if (plateRef.current) plateRef.current.value = ''
-    }
-  }
-
   function removeAiItem(idx: number) {
     setAiItems(aiItems.filter((_, i) => i !== idx))
   }
@@ -834,17 +800,8 @@ export default function AddSheet({
                 </button>
               </div>
 
-              {/* Plate photo */}
-              <div>
-                <input ref={plateRef} type="file" accept="image/*" capture="environment" onChange={onPlatePhoto} className="hidden" />
-                <button onClick={() => plateRef.current?.click()} disabled={aiLoading}
-                  className="w-full flex items-center justify-center gap-2 bg-terra text-white font-bold py-3 rounded-xl active:opacity-90 disabled:opacity-50">
-                  {aiLoading ? 'Analyzing...' : 'Snap plate photo'}
-                </button>
-              </div>
-
               {/* Barcode scanner */}
-              {!photoLoading && !aiLoading && (
+              {!photoLoading && (
                 <div>
                   <p className="text-[.74rem] font-bold uppercase text-inksoft mb-1.5">Or scan a barcode</p>
                   <BarcodeScanner onDetected={onBarcode} onClose={() => setView('search')} />

@@ -77,6 +77,7 @@ export default function App() {
       getSteps(90).then(setStepsHistory)
     } else if (view === 'coach') {
       getWeights(90).then(setWeights)
+      getRange(14).then(setRange)
     }
   }, [session, view])
 
@@ -251,7 +252,7 @@ export default function App() {
         <WeeklyDashboard range={range} weights={weights} stepsHistory={stepsHistory} goalKcal={targets.kcal} goalP={targets.p} stepsGoal={settings.stepsGoal} onLogWeight={handleLogWeight} onLogSteps={handleLogSteps} />
       )}
       {view === 'coach' && (
-        <Coach totals={totals} targets={targets} dayType={dayType} weights={weights} />
+        <Coach totals={totals} targets={targets} dayType={dayType} weights={weights} myFoods={myFoods} range={range} todayEntries={entries} />
       )}
       {view === 'settings' && <Settings settings={settings} onSave={handleSaveSettings} />}
 
