@@ -488,13 +488,13 @@ export default function AddSheet({
     setAiItems([])
     try {
       const data = await fetchWithRetry('/api/parse-meal', JSON.stringify({ text, knownFoods: knownFoodsContext() }))
-      if (data.error) { setAiError(errorToString(data.error)); return }
-      if (!data.items?.length) { setAiError('Could not parse any food items. Try rephrasing.'); return }
+      if (data.error) { setAiError(`${errorToString(data.error)} Your text is preserved — edit and retry.`); return }
+      if (!data.items?.length) { setAiError('Could not parse any food items. Your text is preserved — edit and retry.'); return }
       setAiItems((data.items as ParsedItem[]).map((it) => ({ ...it, cookedFactor: matchCookedFactor(it.name) })))
       setView('ai-confirm')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
-      setAiError(`Failed to parse meal: ${msg}`)
+      setAiError(`Failed to parse meal: ${msg}. Your text is preserved — edit and retry.`)
     } finally {
       setAiLoading(false)
     }

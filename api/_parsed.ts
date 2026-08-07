@@ -46,6 +46,26 @@ export function extractJson(raw: string): string {
   return s
 }
 
+/**
+ * Extract an array from a potentially object-wrapped response.
+ * Handles cases where the model returns {items: [...]} or {foods: [...]} instead of [...].
+ */
+export function unwrapArray(parsed: unknown): unknown[] | null {
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>
+    // Check common wrapper keys
+    for (const key of ['items', 'foods', 'results', 'data', 'entries']) {
+      if (Array.isArray(obj[key])) return obj[key]
+    }
+    // Check if there's any array property
+    for (const val of Object.values(obj)) {
+      if (Array.isArray(val)) return val
+    }
+  }
+  return null
+}
+
 /** Coerce to a finite, non-negative number, capped and rounded. */
 function num(v: unknown, max: number, decimals: number): number {
   const n = Number(v)

@@ -11,6 +11,24 @@ function extractJson(raw: string): string {
   return s
 }
 
+/**
+ * Unwrap object-wrapped responses.
+ * If model returns {item: {...}, ...} or {result: {...}, ...}, extract the inner object.
+ */
+function unwrapObject(parsed: Record<string, unknown>): Record<string, unknown> {
+  // If it already has the expected fields, return as-is
+  if ('kcal' in parsed || 'error' in parsed) return parsed
+  // Check common wrapper keys
+  for (const key of ['item', 'result', 'data', 'nutrition', 'food']) {
+    const val = parsed[key]
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      return val as Record<string, unknown>
+    }
+  }
+  // Return original if no wrapper found
+  return parsed
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
@@ -32,18 +50,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       generationConfig: { maxOutputTokens: 256, responseMimeType: 'application/json' },
     })
 
+    let lastRaw = ''
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await geminiWithRetry(model, content, 'parse-label')
       const raw = result.response.text()
+      lastRaw = raw
       try {
-        const parsed = JSON.parse(extractJson(raw)) as Record<string, unknown>
+        const rawParsed = JSON.parse(extractJson(raw)) as Record<string, unknown>
+        const parsed = unwrapObject(rawParsed)
         if (parsed.error) return res.status(422).json(parsed)
         return res.status(200).json(parsed)
-      } catch {
+      } catch (parseErr) {
+        console.warn(`[parse-label] attempt ${attempt + 1}: JSON parse failed:`, parseErr)
+        console.warn(`[parse-label] raw response:`, raw)
         if (attempt === 0) continue
       }
     }
 
+    console.error('[parse-label] all attempts failed')
+    console.error('[parse-label] last raw response:', lastRaw)
     return res.status(422).json({ error: 'Could not read label. Try again or switch to manual entry.' })
   } catch (e: unknown) {
     return res.status(500).json({ error: friendlyError(e, 'parse-label') })
