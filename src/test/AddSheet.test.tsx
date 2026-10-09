@@ -13,6 +13,7 @@ const baseProps = {
   myFoods: [],
   onSaveMyFood: vi.fn(),
   onDeleteMyFood: vi.fn(),
+  onUpdateMyFoodUnits: vi.fn(),
   savedMeals: [],
   onDeleteSavedMeal: vi.fn(),
   onAddSavedMeal: vi.fn(),

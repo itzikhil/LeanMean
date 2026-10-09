@@ -5,7 +5,7 @@ import {
   addLog, addLogs, copyEntries, deleteLog, deleteSavedMeal as dbDeleteSavedMeal, deleteMyFood as dbDeleteMyFood,
   getDayMeta, getLog, getMyFoods, getRange, getSavedMeals, getSettings, getSteps, getWeights,
   saveMeal as dbSaveMeal, saveSettings as dbSaveSettings, setDayType, setSteps, setWeight,
-  updateMeal, updateQty, upsertMyFood, migrateMeals, ymd, type DayTotal, type StepsEntry,
+  updateMeal, updateQty, upsertMyFood, updateMyFoodUnits, migrateMeals, ymd, type DayTotal, type StepsEntry,
 } from './lib/db'
 import { DEFAULT_SETTINGS } from './lib/targets'
 import type { DayType, LogEntry, MealId, MyFood, SavedMeal, SavedMealItem, Settings as TSettings, WeightEntry } from './lib/types'
@@ -124,6 +124,11 @@ export default function App() {
   async function handleDeleteMyFood(id: string) {
     setMyFoods(myFoods.filter((x) => x.id !== id))
     await dbDeleteMyFood(id)
+  }
+  async function handleUpdateMyFoodUnits(id: string, units: Record<string, number>) {
+    await updateMyFoodUnits(id, units)
+    // Refresh myFoods to reflect the change
+    getMyFoods().then(setMyFoods)
   }
   async function handleLogWeight(kg: number) {
     await setWeight(ymd(new Date()), kg)
@@ -272,7 +277,7 @@ export default function App() {
         ))}
       </nav>
 
-      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} totals={totals} targets={targets} />
+      <AddSheet open={sheet} onClose={() => setSheet(false)} onAdd={handleAdd} onAddMultiple={handleAddMultiple} myFoods={myFoods} onSaveMyFood={handleSaveMyFood} onDeleteMyFood={handleDeleteMyFood} onUpdateMyFoodUnits={handleUpdateMyFoodUnits} savedMeals={savedMeals} onDeleteSavedMeal={handleDeleteSavedMeal} onAddSavedMeal={handleAddSavedMeal} totals={totals} targets={targets} />
 
       {/* Hidden offscreen container for share image rendering */}
       {sharing && (

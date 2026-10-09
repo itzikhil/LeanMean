@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { text, knownFoods } = req.body as { text?: string; knownFoods?: string }
     if (!text) return res.status(400).json({ error: 'Missing text' })
 
-    const prompt = `Parse this meal into food items with macros. Match against known foods when possible; estimate unknowns.
+    const prompt = `Parse this meal into food items with macros. ALWAYS prefer matching against "MY FOODS" first (user's personal items), then MENU/STAPLES, then estimate unknowns.
 
 KNOWN FOODS (macros are listed per 100g or per serving as noted — scale them to the amount actually eaten):
 ${knownFoods || '(none)'}
@@ -17,6 +17,10 @@ ${knownFoods || '(none)'}
 INPUT: "${text}"
 
 RULES:
+- PRIORITY: Match MY FOODS first! If user says "turkey ham", match their saved "Dacello, LE & CO Turkey ham" if available.
+- PERSONAL UNITS: Some MY FOODS have custom units like [units: slice=25g, cup=80g]. Convert these:
+  "two slices of turkey ham" with [units: slice=25g] → 50g worth of macros
+  "a cup of oats" with [units: cup=80g] → 80g worth of macros
 - kcal/p/c/f/fb must be the TOTAL for the amount eaten, already scaled. Never return per-100g values.
 - "qty" is the number of SERVINGS of an item. It is NEVER a weight and defaults to 1.
   A weight belongs in the name and in the scaled macros:
@@ -31,11 +35,12 @@ RULES:
   • XL/Extra-Large/Jumbo: ~300-400g
   • "a bowl of", "a plate of", "some": ~200g
   • "a handful of": ~30-50g
-  • "a cup of": ~240ml/g (adjust for density)
+  • "a cup of": ~240ml/g (adjust for density, unless personal unit defined)
+  • "a scoop of": use personal unit if defined, else ~30g
   When in doubt, pick a middle estimate. Users can correct on the confirm screen.
 
 Return ONLY a JSON array. Each item: {"name":"…","kcal":N,"p":N,"c":N,"f":N,"fb":N,"qty":1,"meal":"breakfast|lunch|dinner|snack","estimated":bool}
-Use estimated:false for known-food matches, true for estimates. If unparseable return [].`
+Use estimated:false for MY FOODS or known-food matches, true for estimates. If unparseable return [].`
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',

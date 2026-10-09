@@ -76,7 +76,7 @@ const SOURCE_COLORS: Record<Source, string> = {
 }
 
 export default function AddSheet({
-  open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, savedMeals, onDeleteSavedMeal, onAddSavedMeal, totals, targets,
+  open, onClose, onAdd, onAddMultiple, myFoods, onSaveMyFood, onDeleteMyFood, onUpdateMyFoodUnits, savedMeals, onDeleteSavedMeal, onAddSavedMeal, totals, targets,
 }: {
   open: boolean
   onClose: () => void
@@ -85,6 +85,7 @@ export default function AddSheet({
   myFoods: MyFood[]
   onSaveMyFood: (f: Omit<MyFood, 'id' | 'use_count' | 'last_used'>) => void
   onDeleteMyFood: (id: string) => void
+  onUpdateMyFoodUnits: (id: string, units: Record<string, number>) => Promise<void>
   savedMeals: SavedMeal[]
   onDeleteSavedMeal: (id: string) => void
   onAddSavedMeal: (meal: MealId, items: SavedMealItem[]) => void
@@ -117,6 +118,10 @@ export default function AddSheet({
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiItems, setAiItems] = useState<ParsedItem[]>([])
 
+  // Voice input states
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+
   // Manual entry
   const [customMeal, setCustomMeal] = useState<MealId>('breakfast')
   const [cf, setCf] = useState({ name: '', kcal: '', p: '', c: '', f: '', fb: '' })
@@ -125,9 +130,55 @@ export default function AddSheet({
   const [scanMsg, setScanMsg] = useState('')
   const [photoLoading, setPhotoLoading] = useState(false)
 
+  // Units editing state
+  const [editingUnitsFor, setEditingUnitsFor] = useState<MyFood | null>(null)
+  const [editingUnits, setEditingUnits] = useState<{ name: string; grams: string }[]>([])
+
   const [kbOffset, setKbOffset] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // Voice recognition setup
+  const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setAiError('Voice input is not supported in this browser.')
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    recognition.onstart = () => setIsListening(true)
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = (e) => {
+      setIsListening(false)
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        setAiError(`Voice error: ${e.error}`)
+      }
+    }
+    recognition.onresult = (e) => {
+      const transcript = Array.from(e.results)
+        .map((r) => r[0].transcript)
+        .join('')
+      setAiText(transcript)
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const stopListening = () => {
+    recognitionRef.current?.stop()
+    setIsListening(false)
+  }
+
+  // Cleanup voice recognition on unmount
+  useEffect(() => {
+    return () => recognitionRef.current?.abort()
+  }, [])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -164,6 +215,40 @@ export default function AddSheet({
     setAiItems([])
     setAiLoading(false)
     setCf({ name: '', kcal: '', p: '', c: '', f: '', fb: '' })
+    setEditingUnitsFor(null)
+    setEditingUnits([])
+  }
+
+  // Units editing functions
+  function startEditingUnits(f: MyFood) {
+    const currentUnits = f.units ?? {}
+    const entries = Object.entries(currentUnits).map(([name, grams]) => ({ name, grams: String(grams) }))
+    if (entries.length === 0) entries.push({ name: '', grams: '' })
+    setEditingUnits(entries)
+    setEditingUnitsFor(f)
+  }
+
+  function addUnitRow() {
+    setEditingUnits([...editingUnits, { name: '', grams: '' }])
+  }
+
+  function removeUnitRow(idx: number) {
+    setEditingUnits(editingUnits.filter((_, i) => i !== idx))
+  }
+
+  function updateUnitRow(idx: number, field: 'name' | 'grams', value: string) {
+    setEditingUnits(editingUnits.map((u, i) => i === idx ? { ...u, [field]: value } : u))
+  }
+
+  async function saveUnits() {
+    if (!editingUnitsFor) return
+    const validUnits = editingUnits.filter((u) => u.name.trim() && parseFloat(u.grams) > 0)
+    const unitsObj = validUnits.length > 0
+      ? Object.fromEntries(validUnits.map((u) => [u.name.trim().toLowerCase(), parseFloat(u.grams)]))
+      : {}
+    await onUpdateMyFoodUnits(editingUnitsFor.id, unitsObj)
+    setEditingUnitsFor(null)
+    setEditingUnits([])
   }
 
   function close() { reset(); onClose() }
@@ -477,7 +562,18 @@ export default function AddSheet({
   function knownFoodsContext() {
     const menuStr = MENU.map((m) => `${m.name}: ${m.kcal}kcal ${m.p}P/${m.c}C/${m.f}F/${m.fb}FB (meal: ${m.meal})`).join('\n')
     const stapleStr = STAPLES.map((s) => `${s.name}: ${s.kcal}kcal ${s.p}P/${s.c}C/${s.f}F/${s.fb}FB per ${s.basis}`).join('\n')
-    return `MENU ITEMS:\n${menuStr}\n\nSTAPLES:\n${stapleStr}`
+
+    // Include user's personal foods with their custom units
+    const myFoodsStr = myFoods.map((f) => {
+      let entry = `${f.name}: ${f.kcal}kcal ${f.p}P/${f.c}C/${f.f}F/${f.fb ?? 0}FB per ${f.basis}`
+      if (f.units && Object.keys(f.units).length > 0) {
+        const unitDefs = Object.entries(f.units).map(([unit, grams]) => `${unit}=${grams}g`).join(', ')
+        entry += ` [units: ${unitDefs}]`
+      }
+      return entry
+    }).join('\n')
+
+    return `MY FOODS (PREFER THESE - match user's personal items first):\n${myFoodsStr}\n\nMENU ITEMS:\n${menuStr}\n\nSTAPLES:\n${stapleStr}`
   }
 
   async function onDescribe() {
@@ -583,6 +679,48 @@ export default function AddSheet({
         <div className="w-[42px] h-[5px] bg-line rounded-md mx-auto mt-2.5 mb-2" />
 
         <div className="overflow-y-auto px-4 pb-7 flex-1">
+          {/* Units Editor Modal */}
+          {editingUnitsFor && (
+            <div className="fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4" onClick={() => setEditingUnitsFor(null)}>
+              <div className="bg-paper rounded-2xl p-4 w-full max-w-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <p className="font-display font-semibold text-lg mb-1">Edit Units</p>
+                <p className="text-[.75rem] text-inksoft mb-3">{editingUnitsFor.name}</p>
+                <p className="text-[.68rem] text-inksoft/70 mb-2">Define custom units (e.g. "slice" = 25g, "scoop" = 30g)</p>
+
+                {editingUnits.map((u, idx) => (
+                  <div key={idx} className="flex items-center gap-2 mb-2">
+                    <input
+                      value={u.name}
+                      onChange={(e) => updateUnitRow(idx, 'name', e.target.value)}
+                      placeholder="Unit name"
+                      className="flex-1 text-sm px-2.5 py-2 border border-line rounded-lg bg-white focus:outline-none focus:border-terra"
+                    />
+                    <span className="text-inksoft/50">=</span>
+                    <input
+                      type="number"
+                      value={u.grams}
+                      onChange={(e) => updateUnitRow(idx, 'grams', e.target.value)}
+                      placeholder="g"
+                      className="w-16 text-sm px-2.5 py-2 border border-line rounded-lg bg-white focus:outline-none focus:border-terra text-center"
+                    />
+                    <span className="text-[.75rem] text-inksoft">g</span>
+                    <button onClick={() => removeUnitRow(idx)} className="text-macp/40 active:text-macp px-1">✕</button>
+                  </div>
+                ))}
+
+                <button onClick={addUnitRow} className="text-sm text-forest font-semibold mb-4">+ Add unit</button>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingUnitsFor(null)} className="flex-1 py-2.5 rounded-xl border border-line text-inksoft font-bold">
+                    Cancel
+                  </button>
+                  <button onClick={saveUnits} className="flex-1 py-2.5 rounded-xl bg-forest text-white font-bold">
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {/* PENDING VIEW - grams/serving flow */}
           {view === 'pending' && pending && (
             <div>
@@ -846,19 +984,32 @@ export default function AddSheet({
                 </button>
               </div>
 
-              {/* Describe input (inline when clicked) */}
+              {/* Describe input with voice (inline when clicked) */}
               {!query && (
                 <div className="mb-4">
                   <form onSubmit={(ev) => { ev.preventDefault(); onDescribe() }}>
-                    <textarea
-                      value={aiText}
-                      onChange={(e) => setAiText(e.target.value)}
-                      placeholder="Describe your meal... e.g. two eggs, toast with butter"
-                      rows={2}
-                      className="w-full text-base px-3.5 py-2.5 border border-line rounded-[10px] bg-white focus:outline-none focus:border-terra resize-none"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={aiText}
+                        onChange={(e) => setAiText(e.target.value)}
+                        placeholder={isListening ? 'Listening...' : 'Describe your meal... e.g. two eggs, toast with butter'}
+                        rows={2}
+                        className={`w-full text-base px-3.5 py-2.5 pr-12 border rounded-[10px] bg-white focus:outline-none resize-none ${isListening ? 'border-terra bg-terra/5' : 'border-line focus:border-terra'}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={isListening ? stopListening : startListening}
+                        className={`absolute right-2 top-2 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isListening ? 'bg-terra text-white animate-pulse' : 'bg-paper2 text-inksoft hover:bg-line'}`}
+                        aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                        </svg>
+                      </button>
+                    </div>
                     {aiText.trim() && (
-                      <button type="submit" disabled={aiLoading}
+                      <button type="submit" disabled={aiLoading || isListening}
                         className="w-full mt-2 bg-terra text-white font-bold py-2.5 rounded-xl active:opacity-90 disabled:opacity-50">
                         {aiLoading ? 'Parsing...' : 'Parse meal'}
                       </button>
@@ -927,6 +1078,16 @@ export default function AddSheet({
                               {f.kcal} kcal · {f.p}P / {f.c}C / {f.f}F / {f.fb ?? 0}FB {f.basis === '100g' ? '/ 100g' : ''}
                               {qualityBadges(f.kcal, f.p, f.fb ?? 0, lowP, lowFb)}
                             </span>
+                            {f.units && Object.keys(f.units).length > 0 && (
+                              <span className="block text-[.62rem] text-terra/70 mt-0.5">
+                                Units: {Object.entries(f.units).map(([name, g]) => `${name}=${g}g`).join(', ')}
+                              </span>
+                            )}
+                          </button>
+                          <button onClick={() => startEditingUnits(f)} className="text-inksoft/40 active:text-inksoft px-1 text-sm" title="Edit units">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                            </svg>
                           </button>
                           <button onClick={() => onDeleteMyFood(f.id)} className="text-macp/40 active:text-macp px-1">x</button>
                           <span className="text-forest text-xl font-bold">+</span>

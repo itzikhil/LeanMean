@@ -28,6 +28,9 @@ export interface LogEntry {
   created_at?: string
 }
 
+/** Personal unit definition: unit name → grams (e.g. "slice" → 25) */
+export type PersonalUnits = Record<string, number>
+
 export interface MyFood {
   id: string
   user_id?: string
@@ -39,6 +42,7 @@ export interface MyFood {
   f: number
   fb: number
   cooked_factor?: number  // cooked weight ÷ raw weight (for raw/cooked toggle)
+  units?: PersonalUnits   // personal unit definitions, e.g. {"slice": 25, "cup": 80}
   use_count: number
   last_used: string
 }

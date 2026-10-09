@@ -101,15 +101,16 @@ export async function getMyFoods(): Promise<MyFood[]> {
 
 export async function upsertMyFood(f: Omit<MyFood, 'id' | 'use_count' | 'last_used'>): Promise<void> {
   // Bump if name already exists, else insert.
-  // Note: cooked_factor is preserved if already set and not provided in the update
+  // Note: cooked_factor and units are preserved if already set and not provided in the update
   const { data: existing } = await supabase.from('my_foods').select('*').eq('name', f.name).maybeSingle()
   if (existing) {
     const updateData = {
       use_count: (existing.use_count ?? 0) + 1,
       last_used: new Date().toISOString(),
       ...f,
-      // Preserve existing cooked_factor if not provided in update
+      // Preserve existing cooked_factor and units if not provided in update
       cooked_factor: f.cooked_factor ?? existing.cooked_factor,
+      units: f.units ?? existing.units,
     }
     await supabase
       .from('my_foods')
@@ -118,6 +119,11 @@ export async function upsertMyFood(f: Omit<MyFood, 'id' | 'use_count' | 'last_us
   } else {
     await supabase.from('my_foods').insert({ ...f, user_id: await uid(), use_count: 1, last_used: new Date().toISOString() })
   }
+}
+
+export async function updateMyFoodUnits(id: string, units: Record<string, number>): Promise<void> {
+  const { error } = await supabase.from('my_foods').update({ units }).eq('id', id)
+  if (error) throw error
 }
 
 export async function deleteMyFood(id: string): Promise<void> {
